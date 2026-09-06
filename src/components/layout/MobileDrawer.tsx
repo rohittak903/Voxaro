@@ -83,13 +83,22 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose, onO
         
         {/* Drawer Header */}
         <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center justify-center overflow-hidden shadow-sm shrink-0">
+          <a
+            href="/"
+            onClick={(e) => {
+              e.preventDefault();
+              onClose();
+              window.location.href = '/';
+            }}
+            className="flex items-center gap-3 cursor-pointer group select-none"
+            title="Refresh Voxaro"
+          >
+            <div className="w-9 h-9 rounded-xl bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center justify-center overflow-hidden shadow-sm shrink-0 group-hover:scale-105 transition-transform">
               <img src="/voxaro-logo.png" alt="Voxaro Logo" className="w-full h-full object-cover" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="font-extrabold text-base text-slate-900 dark:text-white tracking-tight">Voxaro</span>
+                <span className="font-extrabold text-base text-slate-900 dark:text-white tracking-tight group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">Voxaro</span>
                 <span className="px-1.5 py-0.2 text-[9px] font-bold uppercase rounded-full bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300">
                   Studio
                 </span>
@@ -98,7 +107,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose, onO
                 Turn Text into Voice
               </p>
             </div>
-          </div>
+          </a>
 
           <button
             onClick={onClose}

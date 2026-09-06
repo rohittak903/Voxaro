@@ -98,21 +98,29 @@ const AdminPortalContent: React.FC = () => {
       <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           
-          {/* Brand & Badge */}
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center text-white shadow-lg shadow-amber-500/10 font-black overflow-hidden">
+          {/* Brand & Badge (Click to Refresh) */}
+          <a
+            href="/admin"
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.reload();
+            }}
+            className="flex items-center gap-3 cursor-pointer group select-none"
+            title="Refresh Admin Portal"
+          >
+            <div className="w-9 h-9 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center text-white shadow-lg shadow-amber-500/10 font-black overflow-hidden group-hover:scale-105 transition-transform">
               <img src="/voxaro-logo.png" alt="Voxaro" className="w-full h-full object-cover" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-base font-black tracking-tight text-white">VOXARO</h1>
+                <h1 className="text-base font-black tracking-tight text-white group-hover:text-amber-400 transition-colors">VOXARO</h1>
                 <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30">
                   ISOLATED ADMIN PORTAL
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 font-mono">Gateway: /admin.html • Encrypted Session</p>
+              <p className="text-[11px] text-slate-400 font-mono">Gateway: /admin • Encrypted Session</p>
             </div>
-          </div>
+          </a>
 
           {/* Right Actions */}
           <div className="flex items-center gap-3">

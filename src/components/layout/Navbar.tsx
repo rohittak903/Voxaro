@@ -45,29 +45,39 @@ export const Navbar: React.FC<{ onOpenSettings: () => void; onOpenMobileMenu: ()
             <Menu className="w-5 h-5" />
           </button>
 
-          {/* Logo */}
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center justify-center shadow-md shadow-primary-500/10 overflow-hidden shrink-0">
-            <img 
-              src="/voxaro-logo.png" 
-              alt="Voxaro Logo" 
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                (e.target as HTMLElement).style.display = 'none';
-              }}
-            />
-          </div>
-
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-white tracking-tight">Voxaro</span>
-              <span className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300 border border-primary-200 dark:border-primary-800">
-                Studio
-              </span>
+          {/* Logo & Brand Name (Click to Refresh) */}
+          <a
+            href="/"
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.href = '/';
+            }}
+            className="flex items-center gap-2 sm:gap-3 group cursor-pointer select-none"
+            title="Refresh Voxaro"
+          >
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center justify-center shadow-md shadow-primary-500/10 overflow-hidden shrink-0 group-hover:scale-105 transition-transform duration-200">
+              <img 
+                src="/voxaro-logo.png" 
+                alt="Voxaro Logo" 
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
             </div>
-            <p className="hidden md:block text-[11px] font-semibold tracking-wide text-slate-400 dark:text-slate-500 uppercase">
-              Turn Text into Voice
-            </p>
-          </div>
+
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-white tracking-tight group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">Voxaro</span>
+                <span className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300 border border-primary-200 dark:border-primary-800">
+                  Studio
+                </span>
+              </div>
+              <p className="hidden md:block text-[11px] font-semibold tracking-wide text-slate-400 dark:text-slate-500 uppercase">
+                Turn Text into Voice
+              </p>
+            </div>
+          </a>
         </div>
 
         {/* Right Section: Tour, Notifications, Usage, Upgrade, Language, Theme, Profile */}
