@@ -10,7 +10,8 @@ export class AwardService {
     authUser: AuthUser | null
   ): RealtimeAudioStats {
     const totalAudios = history.length;
-    const totalCharacters = history.reduce((sum, j) => sum + (j.inputText ? j.inputText.length : 0), 0) + (user.charactersUsedThisMonth || 0);
+    const historyChars = history.reduce((sum, j) => sum + (j.characterCount || (j.inputText ? j.inputText.length : 0)), 0);
+    const totalCharacters = Math.max(user.charactersUsedThisMonth || 0, historyChars);
     const totalDurationSeconds = history.reduce((sum, j) => sum + (Number(j.duration) || 0), 0);
     
     const uniqueVoicesUsed = new Set(history.map(j => j.voice.id)).size;
@@ -40,7 +41,8 @@ export class AwardService {
     authUser: AuthUser | null
   ): AwardBadge[] {
     const audioCount = history.length;
-    const totalChars = history.reduce((sum, j) => sum + (j.inputText ? j.inputText.length : 0), 0) + (user.charactersUsedThisMonth || 0);
+    const historyChars = history.reduce((sum, j) => sum + (j.characterCount || (j.inputText ? j.inputText.length : 0)), 0);
+    const totalChars = Math.max(user.charactersUsedThisMonth || 0, historyChars);
     const totalDuration = history.reduce((sum, j) => sum + (Number(j.duration) || 0), 0);
     const uniqueVoices = new Set(history.map(j => j.voice.id)).size;
     const uniqueLangs = new Set(history.map(j => j.voice.language)).size;

@@ -130,36 +130,68 @@ export class CloudSyncService {
     return success;
   }
 
+  private static pendingPayloadUpdates: Record<string, Partial<AccountSyncPayload>> = {};
+
   /**
-   * Schedules a debounced background sync push
+   * Schedules a debounced background sync push or immediate push with field accumulation
    */
-  static queueDebouncedSync(email: string, partial: Partial<AccountSyncPayload>): void {
+  static queueDebouncedSync(email: string, partial: Partial<AccountSyncPayload>, immediate: boolean = false): void {
     if (!email) return;
+    const cleanEmail = email.toLowerCase().trim();
+
+    // Accumulate pending partial updates so no property is lost
+    this.pendingPayloadUpdates[cleanEmail] = {
+      ...(this.pendingPayloadUpdates[cleanEmail] || {}),
+      ...partial
+    };
+
+    if (immediate) {
+      if (this.syncDebounceTimer) {
+        clearTimeout(this.syncDebounceTimer);
+        this.syncDebounceTimer = null;
+      }
+      this.flushPendingSync(cleanEmail);
+      return;
+    }
+
     if (this.syncDebounceTimer) {
       clearTimeout(this.syncDebounceTimer);
     }
 
-    this.syncDebounceTimer = setTimeout(async () => {
-      const cleanEmail = email.toLowerCase().trim();
-      const currentProfile = StorageService.getUserProfile(cleanEmail);
-      const currentHistory = StorageService.loadHistory(cleanEmail);
-      const currentInvoices = StorageService.loadInvoices();
+    this.syncDebounceTimer = setTimeout(() => {
+      this.flushPendingSync(cleanEmail);
+    }, 300);
+  }
 
-      const fullPayload: AccountSyncPayload = {
-        email: cleanEmail,
-        name: currentProfile.name,
-        avatarUrl: currentProfile.avatarUrl,
-        plan: currentProfile.plan,
-        charactersUsedThisMonth: currentProfile.charactersUsedThisMonth,
-        favorites: currentProfile.favorites,
-        customPronunciations: currentProfile.customPronunciations,
-        history: currentHistory,
-        invoices: currentInvoices,
-        ...partial
-      };
+  private static async flushPendingSync(cleanEmail: string): Promise<void> {
+    const pending = this.pendingPayloadUpdates[cleanEmail] || {};
+    delete this.pendingPayloadUpdates[cleanEmail];
 
-      await this.pushCloudAccount(fullPayload);
-    }, 1000);
+    const currentProfile = StorageService.getUserProfile(cleanEmail);
+    const currentHistory = StorageService.loadHistory(cleanEmail);
+    const currentInvoices = StorageService.loadInvoices();
+
+    // Accurate calculation from history to prevent any discrepancy
+    const historyChars = currentHistory.reduce((sum, j) => sum + (j.characterCount || j.inputText?.length || 0), 0);
+    const resolvedCharactersUsed = Math.max(
+      pending.charactersUsedThisMonth !== undefined ? pending.charactersUsedThisMonth : (currentProfile.charactersUsedThisMonth || 0),
+      historyChars
+    );
+
+    const fullPayload: AccountSyncPayload = {
+      email: cleanEmail,
+      name: currentProfile.name,
+      avatarUrl: currentProfile.avatarUrl,
+      plan: currentProfile.plan,
+      favorites: currentProfile.favorites,
+      customPronunciations: currentProfile.customPronunciations,
+      history: currentHistory,
+      invoices: currentInvoices,
+      ...pending,
+      charactersUsedThisMonth: resolvedCharactersUsed
+    };
+
+    await this.pushCloudAccount(fullPayload);
   }
 
   /**
@@ -176,24 +208,7 @@ export class CloudSyncService {
     const localHistory = StorageService.loadHistory(email);
 
     if (cloudData) {
-      // 1. Merge Profile details (prefer cloud if updated)
-      const mergedProfile: UserProfile = {
-        ...localProfile,
-        id: authUser.id || localProfile.id,
-        name: cloudData.name || authUser.name || localProfile.name,
-        email: email,
-        avatarUrl: cloudData.avatarUrl || authUser.avatarUrl || localProfile.avatarUrl,
-        plan: cloudData.plan || localProfile.plan || 'free',
-        charactersUsedThisMonth: cloudData.charactersUsedThisMonth !== undefined 
-          ? Math.max(cloudData.charactersUsedThisMonth, localProfile.charactersUsedThisMonth || 0)
-          : localProfile.charactersUsedThisMonth,
-        favorites: Array.from(new Set([...(cloudData.favorites || []), ...(localProfile.favorites || [])])),
-        customPronunciations: cloudData.customPronunciations && cloudData.customPronunciations.length > 0
-          ? cloudData.customPronunciations
-          : localProfile.customPronunciations
-      };
-
-      // 2. Merge History items without duplicates
+      // 1. Merge History items without duplicates
       const historyMap = new Map<string, GenerationJob>();
       (cloudData.history || []).forEach(j => {
         if (j && j.id) historyMap.set(j.id, j);
@@ -206,6 +221,28 @@ export class CloudSyncService {
         .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
         .slice(0, 100);
 
+      const totalHistoryChars = mergedHistory.reduce((sum, j) => sum + (j.characterCount || j.inputText?.length || 0), 0);
+      const accurateCharsUsed = Math.max(
+        Number(cloudData.charactersUsedThisMonth) || 0,
+        Number(localProfile.charactersUsedThisMonth) || 0,
+        totalHistoryChars
+      );
+
+      // 2. Merge Profile details (prefer cloud if updated)
+      const mergedProfile: UserProfile = {
+        ...localProfile,
+        id: authUser.id || localProfile.id,
+        name: cloudData.name || authUser.name || localProfile.name,
+        email: email,
+        avatarUrl: cloudData.avatarUrl || authUser.avatarUrl || localProfile.avatarUrl,
+        plan: cloudData.plan || localProfile.plan || 'free',
+        charactersUsedThisMonth: accurateCharsUsed,
+        favorites: Array.from(new Set([...(cloudData.favorites || []), ...(localProfile.favorites || [])])),
+        customPronunciations: cloudData.customPronunciations && cloudData.customPronunciations.length > 0
+          ? cloudData.customPronunciations
+          : localProfile.customPronunciations
+      };
+
       // 3. Save merged state to account-scoped local storage
       StorageService.saveUserProfile(mergedProfile, email);
       StorageService.saveHistory(mergedHistory, email);
@@ -217,13 +254,18 @@ export class CloudSyncService {
       onSynced?.(mergedProfile, mergedHistory);
       return { profile: mergedProfile, history: mergedHistory };
     } else {
+      const historyChars = localHistory.reduce((sum, j) => sum + (j.characterCount || j.inputText?.length || 0), 0);
+      const accurateChars = Math.max(localProfile.charactersUsedThisMonth || 0, historyChars);
+      const updatedProfile = { ...localProfile, charactersUsedThisMonth: accurateChars };
+      StorageService.saveUserProfile(updatedProfile, email);
+
       // First time on cloud: publish current local state
       const initialPayload: AccountSyncPayload = {
         email,
         name: authUser.name || localProfile.name,
         avatarUrl: authUser.avatarUrl || localProfile.avatarUrl,
         plan: localProfile.plan || 'free',
-        charactersUsedThisMonth: localProfile.charactersUsedThisMonth || 0,
+        charactersUsedThisMonth: accurateChars,
         favorites: localProfile.favorites,
         customPronunciations: localProfile.customPronunciations,
         history: localHistory,
@@ -231,8 +273,8 @@ export class CloudSyncService {
       };
 
       await this.pushCloudAccount(initialPayload);
-      onSynced?.(localProfile, localHistory);
-      return { profile: localProfile, history: localHistory };
+      onSynced?.(updatedProfile, localHistory);
+      return { profile: updatedProfile, history: localHistory };
     }
   }
 

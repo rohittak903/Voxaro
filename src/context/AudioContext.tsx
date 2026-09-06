@@ -325,12 +325,13 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         showToast('Speech playing! (Guest mode: Not saved to history. Sign in with Google to sync across devices)', 'info');
       } else {
         // Authenticated user: Save to persistent history and sync across all devices
+        const currentEmail = authUser?.email;
         const updatedHistory = [newJob, ...history];
         setHistory(updatedHistory);
-        StorageService.saveHistory(updatedHistory);
+        StorageService.saveHistory(updatedHistory, currentEmail);
 
-        if (authUser?.email) {
-          CloudSyncService.queueDebouncedSync(authUser.email, { history: updatedHistory });
+        if (currentEmail) {
+          CloudSyncService.queueDebouncedSync(currentEmail, { history: updatedHistory }, true);
         }
 
         showToast('Audio synthesized & saved to your account!', 'success');
@@ -419,10 +420,11 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const deleteHistoryItem = (id: string) => {
     const updated = history.filter(j => j.id !== id);
     setHistory(updated);
+    const currentEmail = authUser?.email;
     if (isAuthenticated) {
-      StorageService.saveHistory(updated);
-      if (authUser?.email) {
-        CloudSyncService.queueDebouncedSync(authUser.email, { history: updated });
+      StorageService.saveHistory(updated, currentEmail);
+      if (currentEmail) {
+        CloudSyncService.queueDebouncedSync(currentEmail, { history: updated }, true);
       }
     }
     if (currentJob?.id === id) {
@@ -436,10 +438,11 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const clearHistory = () => {
     setHistory([]);
+    const currentEmail = authUser?.email;
     if (isAuthenticated) {
-      StorageService.saveHistory([]);
-      if (authUser?.email) {
-        CloudSyncService.queueDebouncedSync(authUser.email, { history: [] });
+      StorageService.saveHistory([], currentEmail);
+      if (currentEmail) {
+        CloudSyncService.queueDebouncedSync(currentEmail, { history: [] }, true);
       }
     }
     setCurrentJob(null);

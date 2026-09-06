@@ -104,6 +104,9 @@ export const StorageService = {
     try {
       const key = this.getAccountKey(STORAGE_KEYS.USER_PROFILE, email);
       const data = localStorage.getItem(key);
+      const history = this.loadHistory(email || auth.email);
+      const historyChars = history.reduce((sum, j) => sum + (j.characterCount || j.inputText?.length || 0), 0);
+
       if (!data) {
         const userId = ('id' in auth && auth.id) ? (auth as any).id : ('usr-' + Date.now());
         const userName = ('name' in auth && auth.name) ? (auth as any).name : 'Studio Creator';
@@ -111,12 +114,15 @@ export const StorageService = {
           ...DEFAULT_USER,
           id: userId,
           name: userName,
-          email: auth.email
+          email: auth.email,
+          charactersUsedThisMonth: historyChars
         };
         this.saveUserProfile(initialProfile, auth.email);
         return initialProfile;
       }
-      return { ...DEFAULT_USER, ...JSON.parse(data) };
+      const parsed = JSON.parse(data);
+      const actualUsed = Math.max(Number(parsed.charactersUsedThisMonth) || 0, historyChars);
+      return { ...DEFAULT_USER, ...parsed, charactersUsedThisMonth: actualUsed };
     } catch {
       return DEFAULT_USER;
     }

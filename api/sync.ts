@@ -163,9 +163,18 @@ export default async function handler(req: any, res: any) {
     // Pull from cloud topic if not present or to ensure freshest cross-device sync
     const cloudData = await fetchFromCloudTopic(email);
     if (cloudData) {
+      const historyList: any[] = Array.isArray(cloudData.history) ? cloudData.history : (accountData?.history || []);
+      const historyChars = historyList.reduce((sum: number, j: any) => sum + (j?.characterCount || j?.inputText?.length || 0), 0);
+      const usedChars = Math.max(
+        Number(cloudData.charactersUsedThisMonth) || 0,
+        Number(accountData?.charactersUsedThisMonth) || 0,
+        historyChars
+      );
+
       accountData = {
         ...(accountData || {}),
         ...cloudData,
+        charactersUsedThisMonth: usedChars,
         email
       };
       memoryStore[email] = accountData;
@@ -236,6 +245,14 @@ export default async function handler(req: any, res: any) {
         .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
         .slice(0, 100);
     }
+
+    const allHistory: any[] = Array.isArray(mergedData.history) ? mergedData.history : [];
+    const totalHistoryChars = allHistory.reduce((sum: number, j: any) => sum + (j?.characterCount || j?.inputText?.length || 0), 0);
+    mergedData.charactersUsedThisMonth = Math.max(
+      Number(body.charactersUsedThisMonth) || 0,
+      Number(existing.charactersUsedThisMonth) || 0,
+      totalHistoryChars
+    );
 
     memoryStore[email] = mergedData;
     fileStore[email] = mergedData;

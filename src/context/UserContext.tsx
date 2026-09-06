@@ -165,7 +165,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (syncedData) {
         setUser(prev => {
           const updatedUsage = syncedData.charactersUsedThisMonth !== undefined 
-            ? syncedData.charactersUsedThisMonth 
+            ? Math.max(Number(syncedData.charactersUsedThisMonth) || 0, prev.charactersUsedThisMonth || 0)
             : prev.charactersUsedThisMonth;
           const updatedPlan = syncedData.plan || prev.plan;
           
@@ -198,7 +198,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
             name: syncedData.name || prev.name,
             avatarUrl: syncedData.avatarUrl || prev.avatarUrl,
             plan: syncedData.plan || prev.plan,
-            charactersUsedThisMonth: syncedData.charactersUsedThisMonth !== undefined ? syncedData.charactersUsedThisMonth : prev.charactersUsedThisMonth,
+            charactersUsedThisMonth: syncedData.charactersUsedThisMonth !== undefined 
+              ? Math.max(Number(syncedData.charactersUsedThisMonth) || 0, prev.charactersUsedThisMonth || 0)
+              : prev.charactersUsedThisMonth,
             favorites: syncedData.favorites || prev.favorites,
             customPronunciations: syncedData.customPronunciations || prev.customPronunciations
           }));
@@ -313,13 +315,14 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const upgradePlan = (plan: PlanType) => {
-    const updated = StorageService.updatePlan(plan);
+    const currentEmail = authUser?.email;
+    const updated = StorageService.updatePlan(plan, currentEmail);
     setUser(updated);
     setInvoices(StorageService.loadInvoices());
     AdminService.syncUserFromApp(updated, authUser);
     
-    if (authUser?.email) {
-      CloudSyncService.queueDebouncedSync(authUser.email, { plan: updated.plan });
+    if (currentEmail) {
+      CloudSyncService.queueDebouncedSync(currentEmail, { plan: updated.plan }, true);
     }
 
     const planName = (plans[plan] || DEFAULT_PLAN_CONFIGS[plan]).name;
@@ -335,14 +338,15 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setShowPricingModal(true);
       return false;
     }
-    const updated = StorageService.incrementUsage(chars);
+    const currentEmail = authUser?.email;
+    const updated = StorageService.incrementUsage(chars, currentEmail);
     setUser(updated);
     AdminService.syncUserFromApp(updated, authUser);
 
-    if (authUser?.email) {
-      CloudSyncService.queueDebouncedSync(authUser.email, { 
+    if (currentEmail) {
+      CloudSyncService.queueDebouncedSync(currentEmail, { 
         charactersUsedThisMonth: updated.charactersUsedThisMonth 
-      });
+      }, true);
     }
 
     return true;
