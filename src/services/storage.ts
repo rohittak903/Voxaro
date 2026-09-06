@@ -53,23 +53,40 @@ export const StorageService = {
     }
   },
 
+  getAccountKey(baseKey: string, email?: string): string {
+    const auth = email ? { email } : this.loadAuthUser();
+    if (auth && auth.email) {
+      const sanitized = auth.email.toLowerCase().trim().replace(/[^a-zA-Z0-9]/g, '_');
+      return `${baseKey}_${sanitized}`;
+    }
+    return baseKey;
+  },
+
   // History
-  saveHistory(jobs: GenerationJob[]): void {
+  saveHistory(jobs: GenerationJob[], email?: string): void {
+    const auth = email ? { email } : this.loadAuthUser();
+    // Do not save history if not authenticated
+    if (!auth) return;
+
     try {
-      // Store metadata without bloated raw blobs to keep localStorage light and fast
+      const key = this.getAccountKey(STORAGE_KEYS.HISTORY, email);
       const serializableJobs = jobs.map(j => ({
         ...j,
-        audioBlob: undefined // Blobs reconstructed or stored separately
+        audioBlob: undefined // Blobs reconstructed on demand
       }));
-      localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(serializableJobs.slice(0, 100)));
+      localStorage.setItem(key, JSON.stringify(serializableJobs.slice(0, 100)));
     } catch (e) {
       console.warn('Failed to save history to localStorage', e);
     }
   },
 
-  loadHistory(): GenerationJob[] {
+  loadHistory(email?: string): GenerationJob[] {
+    const auth = email ? { email } : this.loadAuthUser();
+    if (!auth) return [];
+
     try {
-      const data = localStorage.getItem(STORAGE_KEYS.HISTORY);
+      const key = this.getAccountKey(STORAGE_KEYS.HISTORY, email);
+      const data = localStorage.getItem(key);
       if (!data) return [];
       return JSON.parse(data);
     } catch {
@@ -78,12 +95,26 @@ export const StorageService = {
   },
 
   // User Profile
-  getUserProfile(): UserProfile {
+  getUserProfile(email?: string): UserProfile {
+    const auth = email ? { email } : this.loadAuthUser();
+    if (!auth) {
+      return DEFAULT_USER;
+    }
+
     try {
-      const data = localStorage.getItem(STORAGE_KEYS.USER_PROFILE);
+      const key = this.getAccountKey(STORAGE_KEYS.USER_PROFILE, email);
+      const data = localStorage.getItem(key);
       if (!data) {
-        this.saveUserProfile(DEFAULT_USER);
-        return DEFAULT_USER;
+        const userId = ('id' in auth && auth.id) ? (auth as any).id : ('usr-' + Date.now());
+        const userName = ('name' in auth && auth.name) ? (auth as any).name : 'Studio Creator';
+        const initialProfile: UserProfile = {
+          ...DEFAULT_USER,
+          id: userId,
+          name: userName,
+          email: auth.email
+        };
+        this.saveUserProfile(initialProfile, auth.email);
+        return initialProfile;
       }
       return { ...DEFAULT_USER, ...JSON.parse(data) };
     } catch {
@@ -91,28 +122,29 @@ export const StorageService = {
     }
   },
 
-  saveUserProfile(profile: UserProfile): void {
+  saveUserProfile(profile: UserProfile, email?: string): void {
     try {
-      localStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(profile));
+      const key = this.getAccountKey(STORAGE_KEYS.USER_PROFILE, email || profile.email);
+      localStorage.setItem(key, JSON.stringify(profile));
     } catch (e) {
       console.warn('Failed to save profile', e);
     }
   },
 
-  updatePlan(plan: PlanType): UserProfile {
-    const current = this.getUserProfile();
+  updatePlan(plan: PlanType, email?: string): UserProfile {
+    const current = this.getUserProfile(email);
     const updated = { ...current, plan };
-    this.saveUserProfile(updated);
+    this.saveUserProfile(updated, email);
     return updated;
   },
 
-  incrementUsage(characters: number): UserProfile {
-    const current = this.getUserProfile();
+  incrementUsage(characters: number, email?: string): UserProfile {
+    const current = this.getUserProfile(email);
     const updated = {
       ...current,
       charactersUsedThisMonth: current.charactersUsedThisMonth + characters
     };
-    this.saveUserProfile(updated);
+    this.saveUserProfile(updated, email);
     return updated;
   },
 

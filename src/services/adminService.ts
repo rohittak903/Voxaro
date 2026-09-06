@@ -16,6 +16,9 @@ export const DEFAULT_PLAN_CONFIGS: Record<PlanType, PlanDetails> = {
     price: 0,
     originalPrice: 0,
     discountPercent: 0,
+    annualPrice: 0,
+    annualOriginalPrice: 0,
+    annualDiscountPercent: 0,
     monthlyLimit: 10000,
     features: [
       '10,000 characters / month',
@@ -37,6 +40,10 @@ export const DEFAULT_PLAN_CONFIGS: Record<PlanType, PlanDetails> = {
     originalPrice: 1999,
     discountPercent: 40,
     discountBadge: '40% OFF SALE',
+    annualPrice: 11510,
+    annualOriginalPrice: 23988,
+    annualDiscountPercent: 52,
+    annualDiscountBadge: 'SAVE 52% - BEST VALUE',
     saleEndsIn: 'Limited Period Offer',
     monthlyLimit: 100000,
     features: [
@@ -60,6 +67,10 @@ export const DEFAULT_PLAN_CONFIGS: Record<PlanType, PlanDetails> = {
     originalPrice: 4999,
     discountPercent: 40,
     discountBadge: '40% OFF PRO SALE',
+    annualPrice: 28790,
+    annualOriginalPrice: 59988,
+    annualDiscountPercent: 52,
+    annualDiscountBadge: 'SAVE 52% - PRO VIP',
     saleEndsIn: 'Launch Exclusive Discount',
     monthlyLimit: 500000,
     features: [

@@ -258,11 +258,11 @@ export const AdminPlansTab: React.FC = () => {
               </div>
             </div>
 
-            {/* Discount Badge & Savings Callout */}
+            {/* Discount Badge & Savings Callout (Monthly) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20">
               <div>
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                  Discount Sale Badge Text
+                  Monthly Discount Sale Badge
                 </label>
                 <input
                   type="text"
@@ -274,12 +274,102 @@ export const AdminPlansTab: React.FC = () => {
               </div>
 
               <div className="flex flex-col justify-center">
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Live Customer Savings</span>
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Monthly Customer Savings</span>
                 <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
                   {(current.originalPrice || current.price) > current.price
                     ? `Save ₹${((current.originalPrice || current.price) - current.price).toLocaleString('en-IN')} / mo (${current.discountPercent || 40}% OFF)`
                     : 'Standard Regular Pricing (No discount active)'}
                 </p>
+              </div>
+            </div>
+
+            {/* ANNUAL PLAN SUBSCRIPTION PRICING SECTION */}
+            <div className="p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/80 space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-indigo-200/50 dark:border-indigo-800/50">
+                <span className="text-xs font-black uppercase text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                  Annual Plan Subscription Configuration
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-600 dark:text-indigo-400">
+                  12-Month Billed
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Annual Regular Strike Price */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Annual Regular Price (₹/yr)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-xs font-bold text-slate-400">₹</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="10"
+                      value={current.annualOriginalPrice ?? ((current.originalPrice || current.price) * 12)}
+                      onChange={(e) => {
+                        const val = Math.max(0, parseInt(e.target.value) || 0);
+                        const saleVal = current.annualPrice ?? Math.round(current.price * 12 * 0.8);
+                        const pct = val > saleVal && val > 0 ? Math.round(((val - saleVal) / val) * 100) : 0;
+                        handleFieldChange('annualOriginalPrice', val);
+                        handleFieldChange('annualDiscountPercent', pct);
+                      }}
+                      className="w-full pl-7 pr-3 py-2 rounded-xl text-xs font-mono font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none"
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">12-month standard value</span>
+                </div>
+
+                {/* Annual Discounted Sale Price */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Annual Sale Price (₹/yr)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-xs font-bold text-slate-400">₹</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="10"
+                      value={current.annualPrice ?? Math.round(current.price * 12 * 0.8)}
+                      onChange={(e) => {
+                        const val = Math.max(0, parseInt(e.target.value) || 0);
+                        const origVal = current.annualOriginalPrice ?? ((current.originalPrice || current.price) * 12);
+                        const pct = origVal > val && origVal > 0 ? Math.round(((origVal - val) / origVal) * 100) : 0;
+                        handleFieldChange('annualPrice', val);
+                        handleFieldChange('annualDiscountPercent', pct);
+                      }}
+                      className="w-full pl-7 pr-3 py-2 rounded-xl text-xs font-mono font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none"
+                    />
+                  </div>
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-0.5 block">
+                    ≈ ₹{Math.round((current.annualPrice ?? (current.price * 12 * 0.8)) / 12).toLocaleString('en-IN')}/mo
+                  </span>
+                </div>
+
+                {/* Annual Badge */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Annual Promo Badge Text
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. SAVE 52% - BEST VALUE"
+                    value={current.annualDiscountBadge || ''}
+                    onChange={(e) => handleFieldChange('annualDiscountBadge', e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-medium focus:outline-none"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">Shown on annual toggle</span>
+                </div>
+              </div>
+
+              {/* Annual Savings Summary */}
+              <div className="p-2.5 rounded-xl bg-white/70 dark:bg-slate-900/70 border border-indigo-100 dark:border-indigo-900 text-[11px] text-indigo-700 dark:text-indigo-300 font-bold flex items-center justify-between">
+                <span>Total Annual Customer Savings:</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">
+                  ₹{Math.max(0, ((current.annualOriginalPrice ?? ((current.originalPrice || current.price) * 12)) - (current.annualPrice ?? Math.round(current.price * 12 * 0.8)))).toLocaleString('en-IN')} / year ({current.annualDiscountPercent ?? 52}% OFF)
+                </span>
               </div>
             </div>
 

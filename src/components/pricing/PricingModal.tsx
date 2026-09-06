@@ -180,15 +180,29 @@ export const PricingModal: React.FC<{ isStandalone?: boolean }> = ({ isStandalon
           const isCurrent = user.plan === type;
           const isPopular = type === 'creator';
           
-          // Original & Discounted Sale INR base prices
-          const originalPrice = plan.originalPrice || (type === 'creator' ? 1999 : type === 'pro' ? 4999 : 0);
-          const inrBasePrice = billingCycle === 'annual' ? Math.round(plan.price * 0.8) : plan.price;
-          const inrOriginalBasePrice = billingCycle === 'annual' ? Math.round(originalPrice * 0.8) : originalPrice;
+          // Monthly vs Annual calculations
+          const isAnnual = billingCycle === 'annual';
+          const monthlySalePrice = plan.price;
+          const monthlyOriginalPrice = plan.originalPrice || (type === 'creator' ? 1999 : type === 'pro' ? 4999 : 0);
+          
+          const annualSalePrice = plan.annualPrice !== undefined ? plan.annualPrice : Math.round(monthlySalePrice * 12 * 0.8);
+          const annualOriginalPrice = plan.annualOriginalPrice !== undefined ? plan.annualOriginalPrice : (monthlyOriginalPrice * 12);
+
+          const inrBasePrice = isAnnual ? Math.round(annualSalePrice / 12) : monthlySalePrice;
+          const inrOriginalBasePrice = isAnnual ? Math.round(annualOriginalPrice / 12) : monthlyOriginalPrice;
           
           // Formatted prices in target currency
           const formattedDisplayPrice = CurrencyService.formatPrice(inrBasePrice, currency.code);
           const formattedOriginalPrice = CurrencyService.formatPrice(inrOriginalBasePrice, currency.code);
-          const savingsInr = Math.max(0, originalPrice - inrBasePrice);
+          const formattedAnnualTotal = CurrencyService.formatPrice(annualSalePrice, currency.code);
+          
+          const savingsInr = isAnnual 
+            ? Math.max(0, annualOriginalPrice - annualSalePrice) 
+            : Math.max(0, monthlyOriginalPrice - monthlySalePrice);
+
+          const discountBadge = isAnnual 
+            ? (plan.annualDiscountBadge || `SAVE ${plan.annualDiscountPercent || 52}% ANNUAL`) 
+            : (plan.discountBadge || `${plan.discountPercent || 40}% OFF`);
 
           return (
             <div
@@ -219,14 +233,14 @@ export const PricingModal: React.FC<{ isStandalone?: boolean }> = ({ isStandalon
                 <div className="space-y-1.5 mb-6 p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-950/60 border border-slate-200/70 dark:border-slate-800/80">
                   
                   {/* Original Strike-through Price & Discount Badge */}
-                  {originalPrice > 0 && originalPrice > plan.price && (
+                  {((isAnnual ? annualOriginalPrice : monthlyOriginalPrice) > (isAnnual ? annualSalePrice : monthlySalePrice)) && (
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs sm:text-sm text-slate-400 dark:text-slate-500 line-through font-semibold font-mono">
                         {formattedOriginalPrice}
                       </span>
                       <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-rose-500 text-white shadow-2xs flex items-center gap-1 animate-pulse">
                         <Tag className="w-2.5 h-2.5" />
-                        {plan.discountBadge || `${plan.discountPercent || 40}% OFF`}
+                        {discountBadge}
                       </span>
                     </div>
                   )}
@@ -239,15 +253,17 @@ export const PricingModal: React.FC<{ isStandalone?: boolean }> = ({ isStandalon
                     <span className="text-xs text-slate-400 font-semibold">/ month</span>
                   </div>
 
-                  {/* Savings summary */}
+                  {/* Savings summary & Annual total */}
                   {plan.price > 0 && (
                     <div className="pt-1 border-t border-slate-200/60 dark:border-slate-800/60 space-y-0.5">
                       <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
-                        <span>Save ₹{savingsInr.toLocaleString('en-IN')} INR/mo</span>
-                        {billingCycle === 'annual' && <span className="text-indigo-500 font-extrabold">(+20% Extra)</span>}
+                        <span>Save ₹{savingsInr.toLocaleString('en-IN')} INR{isAnnual ? '/yr' : '/mo'}</span>
+                        {isAnnual && <span className="text-indigo-500 font-extrabold">(Billed ₹{annualSalePrice.toLocaleString('en-IN')}/yr)</span>}
                       </div>
                       <div className="text-[10px] text-slate-400 font-mono">
-                        Base: ₹{inrBasePrice.toLocaleString('en-IN')} INR/mo (Regular: ₹{originalPrice.toLocaleString('en-IN')})
+                        {isAnnual 
+                          ? `Annual Billed: ₹${annualSalePrice.toLocaleString('en-IN')} INR (Reg. ₹${annualOriginalPrice.toLocaleString('en-IN')})`
+                          : `Monthly Base: ₹${monthlySalePrice.toLocaleString('en-IN')} INR (Reg. ₹${monthlyOriginalPrice.toLocaleString('en-IN')})`}
                       </div>
                     </div>
                   )}

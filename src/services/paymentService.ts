@@ -35,14 +35,18 @@ export class PaymentService {
     const originalMonthly = targetConfig?.originalPrice || (plan === 'pro' ? 4999 : 1999);
 
     if (cycle === 'yearly') {
-      const discountedYearly = Math.round(monthly * 12 * 0.8);
-      const regularYearly = originalMonthly * 12;
+      const discountedYearly = targetConfig?.annualPrice !== undefined 
+        ? targetConfig.annualPrice 
+        : Math.round(monthly * 12 * 0.8);
+      const regularYearly = targetConfig?.annualOriginalPrice !== undefined 
+        ? targetConfig.annualOriginalPrice 
+        : (originalMonthly * 12);
       return { 
         price: discountedYearly, 
         originalMonthly,
         regularTotal: regularYearly,
         savingsInr: Math.max(0, regularYearly - discountedYearly),
-        savingsPercent: Math.round(((regularYearly - discountedYearly) / regularYearly) * 100) 
+        savingsPercent: targetConfig?.annualDiscountPercent || Math.round(((regularYearly - discountedYearly) / regularYearly) * 100) 
       };
     }
 

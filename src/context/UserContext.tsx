@@ -127,10 +127,56 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('voxcraft_theme', theme);
   }, [theme]);
 
-  // Listen for Cloud Sync events across tabs / devices
+  // Auto-sync on initial mount and listen for Live Multi-Device Sync
   useEffect(() => {
-    const unsubscribe = CloudSyncService.subscribeToSyncEvents((event) => {
-      if (authUser && event.email && event.email.toLowerCase() === authUser.email.toLowerCase()) {
+    if (!authUser || !authUser.email) return;
+
+    const email = authUser.email.toLowerCase().trim();
+
+    // 1. Instant pull on startup/refresh
+    CloudSyncService.syncOnLogin(authUser, (mergedProfile, mergedHistory) => {
+      setUser(mergedProfile);
+      window.dispatchEvent(new CustomEvent('voxaro_account_synced', { 
+        detail: { profile: mergedProfile, history: mergedHistory, email } 
+      }));
+    }).then(res => {
+      setUser(res.profile);
+      window.dispatchEvent(new CustomEvent('voxaro_account_synced', { 
+        detail: { profile: res.profile, history: res.history, email } 
+      }));
+    });
+
+    // 2. Start Live Multi-Device Pub/Sub & Polling
+    const stopLiveSync = CloudSyncService.startLiveDeviceSync(email, (syncedData) => {
+      if (syncedData) {
+        setUser(prev => {
+          const updatedUsage = syncedData.charactersUsedThisMonth !== undefined 
+            ? syncedData.charactersUsedThisMonth 
+            : prev.charactersUsedThisMonth;
+          const updatedPlan = syncedData.plan || prev.plan;
+          
+          return {
+            ...prev,
+            name: syncedData.name || prev.name,
+            avatarUrl: syncedData.avatarUrl || prev.avatarUrl,
+            plan: updatedPlan,
+            charactersUsedThisMonth: updatedUsage,
+            favorites: syncedData.favorites || prev.favorites,
+            customPronunciations: syncedData.customPronunciations || prev.customPronunciations
+          };
+        });
+
+        if (Array.isArray(syncedData.history)) {
+          window.dispatchEvent(new CustomEvent('voxaro_account_synced', { 
+            detail: { history: syncedData.history, email } 
+          }));
+        }
+      }
+    });
+
+    // 3. Local BroadcastChannel cross-tab listener
+    const unsubscribeLocal = CloudSyncService.subscribeToSyncEvents((event) => {
+      if (event.email && event.email.toLowerCase() === email) {
         const syncedData = event.data;
         if (syncedData) {
           setUser(prev => ({
@@ -142,12 +188,20 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
             favorites: syncedData.favorites || prev.favorites,
             customPronunciations: syncedData.customPronunciations || prev.customPronunciations
           }));
+          if (Array.isArray(syncedData.history)) {
+            window.dispatchEvent(new CustomEvent('voxaro_account_synced', { 
+              detail: { history: syncedData.history, email } 
+            }));
+          }
         }
       }
     });
 
-    return () => unsubscribe();
-  }, [authUser]);
+    return () => {
+      stopLiveSync();
+      unsubscribeLocal();
+    };
+  }, [authUser?.email]);
 
   // Auth Handlers
   const login = async (email: string, name?: string, provider: 'email' | 'google' | 'github' | 'guest' = 'email', avatarUrl?: string) => {

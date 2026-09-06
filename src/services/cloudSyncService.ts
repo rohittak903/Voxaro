@@ -16,65 +16,122 @@ export interface AccountSyncPayload {
 
 const SYNC_BUS_NAME = 'voxaro_sync_channel';
 
+function getSanitizedTopic(email: string): string {
+  // Safe alphanumeric topic hash
+  let hash = 0;
+  const str = email.toLowerCase().trim();
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  const clean = str.replace(/[^a-zA-Z0-9]/g, '_');
+  return `vx_sync_${clean.slice(0, 20)}_${Math.abs(hash)}`;
+}
+
 export class CloudSyncService {
   private static broadcastChannel: BroadcastChannel | null = typeof window !== 'undefined' && 'BroadcastChannel' in window
     ? new BroadcastChannel(SYNC_BUS_NAME)
     : null;
 
   private static syncDebounceTimer: any = null;
+  private static activeEventSource: EventSource | null = null;
+  private static pollingInterval: any = null;
 
   /**
-   * Pulls the latest cloud account state from the server for the given user email
+   * Pulls the latest cloud account state across all active devices
    */
   static async fetchCloudAccount(email: string): Promise<AccountSyncPayload | null> {
     if (!email) return null;
+    const cleanEmail = email.toLowerCase().trim();
+
+    // 1. Try local serverless endpoint
     try {
-      const res = await fetch(`/api/sync?email=${encodeURIComponent(email.toLowerCase().trim())}`);
-      if (!res.ok) return null;
-      const json = await res.json();
-      if (json.success && json.data) {
-        return json.data as AccountSyncPayload;
+      const res = await fetch(`/api/sync?email=${encodeURIComponent(cleanEmail)}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          return json.data as AccountSyncPayload;
+        }
       }
-      return null;
+    } catch (err) {}
+
+    // 2. Direct Cloud Topic Fallback
+    try {
+      const topic = getSanitizedTopic(cleanEmail);
+      const res = await fetch(`https://ntfy.sh/${topic}/json?poll=1`);
+      if (res.ok) {
+        const text = await res.text();
+        const lines = text.trim().split('\n').filter(Boolean);
+        for (let i = lines.length - 1; i >= 0; i--) {
+          try {
+            const item = JSON.parse(lines[i]);
+            if (item.event === 'message' && item.message) {
+              const data = JSON.parse(item.message);
+              if (data && data.email) return data;
+            }
+          } catch {}
+        }
+      }
     } catch (err) {
-      console.warn('Could not fetch cloud account state (offline mode)', err);
-      return null;
+      console.warn('Direct cloud topic fallback fetch error', err);
     }
+
+    return null;
   }
 
   /**
-   * Pushes updated account details to the serverless cloud sync backend
+   * Pushes updated account details to the serverless sync backend & global topic
    */
   static async pushCloudAccount(payload: AccountSyncPayload): Promise<boolean> {
     if (!payload.email) return false;
+    const cleanEmail = payload.email.toLowerCase().trim();
+    payload.email = cleanEmail;
+    payload.lastSyncedAt = new Date().toISOString();
+
+    let success = false;
+
+    // 1. Push to /api/sync
     try {
       const res = await fetch('/api/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      if (!res.ok) return false;
-      const json = await res.json();
-      
-      // Notify other tabs on this device
-      if (this.broadcastChannel) {
-        this.broadcastChannel.postMessage({
-          type: 'CLOUD_SYNC_UPDATED',
-          email: payload.email,
-          data: payload,
-          timestamp: Date.now()
-        });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success) success = true;
       }
+    } catch (err) {}
 
-      return json.success === true;
-    } catch (err) {
-      console.warn('Failed to push cloud account sync update', err);
-      return false;
+    // 2. Relay directly to ntfy cloud topic for instant cross-device wakeup
+    try {
+      const topic = getSanitizedTopic(cleanEmail);
+      await fetch(`https://ntfy.sh/${topic}`, {
+        method: 'POST',
+        headers: {
+          'Title': 'Voxaro Sync',
+          'Tags': 'sync'
+        },
+        body: JSON.stringify(payload)
+      });
+      success = true;
+    } catch (err) {}
+
+    // 3. Notify other tabs on this device via BroadcastChannel
+    if (this.broadcastChannel) {
+      this.broadcastChannel.postMessage({
+        type: 'CLOUD_SYNC_UPDATED',
+        email: cleanEmail,
+        data: payload,
+        timestamp: Date.now()
+      });
     }
+
+    return success;
   }
 
   /**
-   * Schedules a debounced background sync push (e.g. after generating audio or changing settings)
+   * Schedules a debounced background sync push
    */
   static queueDebouncedSync(email: string, partial: Partial<AccountSyncPayload>): void {
     if (!email) return;
@@ -83,12 +140,13 @@ export class CloudSyncService {
     }
 
     this.syncDebounceTimer = setTimeout(async () => {
-      const currentProfile = StorageService.getUserProfile();
-      const currentHistory = StorageService.loadHistory();
+      const cleanEmail = email.toLowerCase().trim();
+      const currentProfile = StorageService.getUserProfile(cleanEmail);
+      const currentHistory = StorageService.loadHistory(cleanEmail);
       const currentInvoices = StorageService.loadInvoices();
 
       const fullPayload: AccountSyncPayload = {
-        email: email.toLowerCase().trim(),
+        email: cleanEmail,
         name: currentProfile.name,
         avatarUrl: currentProfile.avatarUrl,
         plan: currentProfile.plan,
@@ -101,12 +159,12 @@ export class CloudSyncService {
       };
 
       await this.pushCloudAccount(fullPayload);
-    }, 1200);
+    }, 1000);
   }
 
   /**
-   * Called when a user logs in on ANY device:
-   * Merges cloud profile & history with local storage so everything is identical
+   * Called on login OR on initial app mount:
+   * Merges cloud profile & history with local storage so credits, plan, and history match 100% across devices
    */
   static async syncOnLogin(
     authUser: AuthUser, 
@@ -114,11 +172,11 @@ export class CloudSyncService {
   ): Promise<{ profile: UserProfile; history: GenerationJob[] }> {
     const email = authUser.email.toLowerCase().trim();
     const cloudData = await this.fetchCloudAccount(email);
-    const localProfile = StorageService.getUserProfile();
-    const localHistory = StorageService.loadHistory();
+    const localProfile = StorageService.getUserProfile(email);
+    const localHistory = StorageService.loadHistory(email);
 
     if (cloudData) {
-      // 1. Merge Profile details
+      // 1. Merge Profile details (prefer cloud if updated)
       const mergedProfile: UserProfile = {
         ...localProfile,
         id: authUser.id || localProfile.id,
@@ -127,7 +185,7 @@ export class CloudSyncService {
         avatarUrl: cloudData.avatarUrl || authUser.avatarUrl || localProfile.avatarUrl,
         plan: cloudData.plan || localProfile.plan || 'free',
         charactersUsedThisMonth: cloudData.charactersUsedThisMonth !== undefined 
-          ? cloudData.charactersUsedThisMonth 
+          ? Math.max(cloudData.charactersUsedThisMonth, localProfile.charactersUsedThisMonth || 0)
           : localProfile.charactersUsedThisMonth,
         favorites: Array.from(new Set([...(cloudData.favorites || []), ...(localProfile.favorites || [])])),
         customPronunciations: cloudData.customPronunciations && cloudData.customPronunciations.length > 0
@@ -145,33 +203,21 @@ export class CloudSyncService {
       });
 
       const mergedHistory = Array.from(historyMap.values())
-        .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+        .slice(0, 100);
 
-      // 3. Save merged state to localStorage
-      StorageService.saveUserProfile(mergedProfile);
-      StorageService.saveHistory(mergedHistory);
+      // 3. Save merged state to account-scoped local storage
+      StorageService.saveUserProfile(mergedProfile, email);
+      StorageService.saveHistory(mergedHistory, email);
 
       if (cloudData.invoices && cloudData.invoices.length > 0) {
         StorageService.saveInvoices(cloudData.invoices);
       }
 
-      // 4. Push combined state back to ensure cloud is 100% up-to-date
-      this.pushCloudAccount({
-        email,
-        name: mergedProfile.name,
-        avatarUrl: mergedProfile.avatarUrl,
-        plan: mergedProfile.plan,
-        charactersUsedThisMonth: mergedProfile.charactersUsedThisMonth,
-        favorites: mergedProfile.favorites,
-        customPronunciations: mergedProfile.customPronunciations,
-        history: mergedHistory,
-        invoices: StorageService.loadInvoices()
-      });
-
       onSynced?.(mergedProfile, mergedHistory);
       return { profile: mergedProfile, history: mergedHistory };
     } else {
-      // New cloud account or first time on cloud: upload initial state
+      // First time on cloud: publish current local state
       const initialPayload: AccountSyncPayload = {
         email,
         name: authUser.name || localProfile.name,
@@ -191,7 +237,67 @@ export class CloudSyncService {
   }
 
   /**
-   * Subscribe to cross-device and cross-tab sync events
+   * Starts live background synchronization across active devices via SSE + periodic polling
+   */
+  static startLiveDeviceSync(
+    email: string, 
+    onSyncUpdate: (synced: AccountSyncPayload) => void
+  ): () => void {
+    if (!email) return () => {};
+    const cleanEmail = email.toLowerCase().trim();
+    const topic = getSanitizedTopic(cleanEmail);
+
+    // 1. Setup SSE stream
+    try {
+      if (typeof window !== 'undefined' && 'EventSource' in window) {
+        if (this.activeEventSource) {
+          this.activeEventSource.close();
+        }
+        const es = new EventSource(`https://ntfy.sh/${topic}/sse`);
+        es.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.event === 'message' && data.message) {
+              const payload = JSON.parse(data.message) as AccountSyncPayload;
+              if (payload && payload.email === cleanEmail) {
+                onSyncUpdate(payload);
+              }
+            }
+          } catch {}
+        };
+        this.activeEventSource = es;
+      }
+    } catch (e) {}
+
+    // 2. Periodic background poll every 10s or when window regains focus
+    const handlePoll = async () => {
+      const data = await this.fetchCloudAccount(cleanEmail);
+      if (data) {
+        onSyncUpdate(data);
+      }
+    };
+
+    if (this.pollingInterval) clearInterval(this.pollingInterval);
+    this.pollingInterval = setInterval(handlePoll, 10000);
+
+    const handleFocus = () => handlePoll();
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      if (this.activeEventSource) {
+        this.activeEventSource.close();
+        this.activeEventSource = null;
+      }
+      if (this.pollingInterval) {
+        clearInterval(this.pollingInterval);
+        this.pollingInterval = null;
+      }
+      window.removeEventListener('focus', handleFocus);
+    };
+  }
+
+  /**
+   * Subscribe to local cross-tab sync events
    */
   static subscribeToSyncEvents(callback: (event: any) => void): () => void {
     if (!this.broadcastChannel) {

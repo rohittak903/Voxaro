@@ -72,10 +72,14 @@ export type PlanType = 'free' | 'creator' | 'pro';
 export interface PlanDetails {
   type: PlanType;
   name: string;
-  price: number; // Current discounted / sale price (INR)
-  originalPrice?: number; // Original / regular strike-through price (INR)
-  discountPercent?: number; // e.g. 40 for 40% OFF
+  price: number; // Current monthly discounted / sale price (INR)
+  originalPrice?: number; // Monthly regular strike-through price (INR)
+  discountPercent?: number; // Monthly discount percentage (e.g. 40)
   discountBadge?: string; // e.g. '40% OFF SALE' or 'LAUNCH DEAL'
+  annualPrice?: number; // Annual discounted / sale price (INR / year)
+  annualOriginalPrice?: number; // Annual regular strike-through price (INR / year)
+  annualDiscountPercent?: number; // Annual total discount percentage (e.g. 52)
+  annualDiscountBadge?: string; // e.g. 'SAVE 52% - BEST VALUE'
   saleEndsIn?: string; // Optional countdown or promo tag
   monthlyLimit: number;
   features: string[];

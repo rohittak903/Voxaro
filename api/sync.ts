@@ -1,8 +1,12 @@
 import fs from 'fs';
 import path from 'path';
 
-// In-memory cloud cache for serverless runtime
+// In-memory cloud cache for fast responses
 const memoryStore: Record<string, any> = {};
+
+function sanitizeTopic(email: string): string {
+  return 'voxaro_sync_' + Buffer.from(email.toLowerCase().trim()).toString('hex').slice(0, 48);
+}
 
 function getStoreFilePath(): string {
   const tmpDir = process.env.TMPDIR || process.env.TEMP || '/tmp';
@@ -17,7 +21,7 @@ function loadFileStore(): Record<string, any> {
       return JSON.parse(data);
     }
   } catch (err) {
-    // fallback to memory
+    // fallback
   }
   return {};
 }
@@ -27,6 +31,46 @@ function saveFileStore(store: Record<string, any>) {
     const filePath = getStoreFilePath();
     fs.writeFileSync(filePath, JSON.stringify(store), 'utf-8');
   } catch (err) {
+    // fallback
+  }
+}
+
+async function fetchFromCloudTopic(email: string): Promise<any | null> {
+  try {
+    const topic = sanitizeTopic(email);
+    const res = await fetch(`https://ntfy.sh/${topic}/json?poll=1`);
+    if (!res.ok) return null;
+    const text = await res.text();
+    const lines = text.trim().split('\n').filter(Boolean);
+    if (lines.length === 0) return null;
+
+    // Get the latest message event
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const item = JSON.parse(lines[i]);
+        if (item.event === 'message' && item.message) {
+          return JSON.parse(item.message);
+        }
+      } catch {}
+    }
+  } catch (e) {
+    // offline fallback
+  }
+  return null;
+}
+
+async function pushToCloudTopic(email: string, data: any): Promise<void> {
+  try {
+    const topic = sanitizeTopic(email);
+    await fetch(`https://ntfy.sh/${topic}`, {
+      method: 'POST',
+      headers: {
+        'Title': 'Account Sync',
+        'Tags': 'sync,account'
+      },
+      body: JSON.stringify(data)
+    });
+  } catch (e) {
     // fallback
   }
 }
@@ -41,7 +85,7 @@ export default async function handler(req: any, res: any) {
     return res.status(200).end();
   }
 
-  // GET: Fetch account state by email
+  // GET: Fetch account state by email across all devices
   if (req.method === 'GET') {
     const email = (req.query?.email || '').toString().toLowerCase().trim();
     if (!email) {
@@ -49,7 +93,20 @@ export default async function handler(req: any, res: any) {
     }
 
     const fileStore = loadFileStore();
-    const accountData = memoryStore[email] || fileStore[email] || null;
+    let accountData = memoryStore[email] || fileStore[email] || null;
+
+    // Pull from cloud topic if not present or to ensure freshest cross-device sync
+    const cloudData = await fetchFromCloudTopic(email);
+    if (cloudData) {
+      accountData = {
+        ...(accountData || {}),
+        ...cloudData,
+        email
+      };
+      memoryStore[email] = accountData;
+      fileStore[email] = accountData;
+      saveFileStore(fileStore);
+    }
 
     return res.status(200).json({
       success: true,
@@ -83,11 +140,9 @@ export default async function handler(req: any, res: any) {
       const existingHistory: any[] = Array.isArray(existing.history) ? existing.history : [];
       const historyMap = new Map<string, any>();
       
-      // Add existing
       existingHistory.forEach(item => {
         if (item && item.id) historyMap.set(item.id, item);
       });
-      // Merge new
       body.history.forEach((item: any) => {
         if (item && item.id) historyMap.set(item.id, item);
       });
@@ -100,6 +155,9 @@ export default async function handler(req: any, res: any) {
     memoryStore[email] = mergedData;
     fileStore[email] = mergedData;
     saveFileStore(fileStore);
+
+    // Relay to global cloud topic for instant multi-device wakeup
+    await pushToCloudTopic(email, mergedData);
 
     return res.status(200).json({
       success: true,
