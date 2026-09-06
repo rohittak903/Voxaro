@@ -81,11 +81,11 @@ export const Navbar: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSetting
             </div>
           </div>
 
-          {/* Upgrade CTA */}
+          {/* Upgrade CTA - Desktop / Tablet */}
           {user.plan === 'free' ? (
             <button
               onClick={() => openCheckout('creator')}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm hover:from-amber-600 hover:to-orange-600 transition-all transform active:scale-95"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm hover:from-amber-600 hover:to-orange-600 transition-all transform active:scale-95 shrink-0"
             >
               <Crown className="w-3.5 h-3.5 text-amber-100" />
               <span>{t.upgradeToPro}</span>
@@ -93,17 +93,17 @@ export const Navbar: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSetting
           ) : (
             <div 
               onClick={() => openCheckout('pro')}
-              className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer ${planDetails.badgeColor}`}
+              className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer shrink-0 ${planDetails.badgeColor}`}
             >
               <Sparkles className="w-3.5 h-3.5" />
               <span>{planDetails.name}</span>
             </div>
           )}
 
-          {/* Interactive Tutorial Launcher */}
+          {/* Interactive Tutorial Launcher - Desktop */}
           <button
             onClick={startTour}
-            className="hidden sm:flex p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            className="hidden md:flex p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shrink-0"
             title="Start Interactive Guided Tour"
           >
             <Compass className="w-4 h-4 text-primary-500" />
@@ -112,8 +112,8 @@ export const Navbar: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSetting
           {/* In-App Notifications Bell */}
           <NotificationCenter />
 
-          {/* Language Selector */}
-          <div className="relative">
+          {/* Language Selector - Desktop */}
+          <div className="relative hidden md:block">
             <button
               onClick={() => setShowLangMenu(!showLangMenu)}
               className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center gap-1"
@@ -151,7 +151,7 @@ export const Navbar: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSetting
           {/* Theme Switcher */}
           <ThemeToggle />
 
-          {/* User Profile / Auth Dropdown */}
+          {/* User Profile / Sign In Button - ALWAYS PROMINENT ON MOBILE & DESKTOP */}
           <UserDropdown onOpenSettings={onOpenSettings} />
 
         </div>
