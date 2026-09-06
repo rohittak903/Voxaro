@@ -317,6 +317,9 @@ export const TextEditor: React.FC = () => {
                   <Sparkles className="w-3.5 h-3.5 text-primary-500" />
                   <span>{t.tone}</span>
                 </label>
+                <span className="text-[10px] text-primary-600 dark:text-primary-400 font-semibold truncate max-w-[130px]">
+                  {tones.find(item => item.id === tone)?.label} Tone
+                </span>
               </div>
               <div className="grid grid-cols-3 gap-1.5">
                 {tones.map((tItem) => (
@@ -325,7 +328,7 @@ export const TextEditor: React.FC = () => {
                     onClick={() => setTone(tItem.id)}
                     className={`px-2 py-1.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-all ${
                       tone === tItem.id
-                        ? 'bg-primary-600 text-white shadow-sm'
+                        ? 'bg-primary-600 text-white shadow-sm ring-1 ring-primary-400'
                         : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/60 hover:bg-slate-100 dark:hover:bg-slate-700'
                     }`}
                   >

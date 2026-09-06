@@ -1,26 +1,61 @@
-import React, { useState } from 'react';
-import { useUser, PLANS } from '../../context/UserContext';
+import React, { useState, useEffect } from 'react';
+import { useUser } from '../../context/UserContext';
 import { PlanType } from '../../types';
-import { Crown, Check, Sparkles, X, ShieldCheck, Zap, CreditCard, Lock } from 'lucide-react';
+import { CurrencyService, SUPPORTED_CURRENCIES, CurrencyConfig } from '../../services/currencyService';
+import { 
+  Check, 
+  Sparkles, 
+  X, 
+  ShieldCheck, 
+  Zap, 
+  Lock, 
+  MapPin, 
+  Compass, 
+  Globe2, 
+  ArrowRight,
+  ChevronDown
+} from 'lucide-react';
 
 export const PricingModal: React.FC<{ isStandalone?: boolean }> = ({ isStandalone = false }) => {
-  const { user, upgradePlan, openCheckout, showPricingModal, setShowPricingModal, showToast } = useUser();
-  const [selectedPlanForCheckout, setSelectedPlanForCheckout] = useState<PlanType | null>(null);
+  const { user, plans, upgradePlan, openCheckout, showPricingModal, setShowPricingModal, showToast } = useUser();
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [currency, setCurrency] = useState<CurrencyConfig>(() => CurrencyService.getActiveCurrency());
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const [locationStatus, setLocationStatus] = useState<string>('');
+
+  useEffect(() => {
+    const handleCurrencyChange = (e: any) => {
+      if (e.detail) {
+        setCurrency(e.detail);
+      }
+    };
+    window.addEventListener('voxaro_currency_changed', handleCurrencyChange);
+    return () => window.removeEventListener('voxaro_currency_changed', handleCurrencyChange);
+  }, []);
 
   if (!isStandalone && !showPricingModal) return null;
 
-  const handleCheckoutSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedPlanForCheckout) return;
+  const handleDetectLocation = async () => {
+    setIsDetectingLocation(true);
+    setLocationStatus('Detecting geolocation & region...');
 
-    setIsProcessing(true);
-    setTimeout(() => {
-      upgradePlan(selectedPlanForCheckout);
-      setIsProcessing(false);
-      setSelectedPlanForCheckout(null);
-    }, 1200);
+    try {
+      const result = await CurrencyService.requestGeoLocationPermission();
+      setCurrency(result.currency);
+      setLocationStatus(result.message);
+      showToast(result.message, 'success');
+    } catch (e: any) {
+      showToast('Could not detect location. Defaulted to INR.', 'info');
+    } finally {
+      setIsDetectingLocation(false);
+    }
+  };
+
+  const handleCurrencySelect = (code: string) => {
+    const newConfig = CurrencyService.setActiveCurrency(code);
+    setCurrency(newConfig);
+    setLocationStatus(`Currency switched to ${newConfig.name} (${newConfig.code})`);
+    showToast(`Displaying prices in ${newConfig.name} (${newConfig.code})`, 'info');
   };
 
   const planTypes: PlanType[] = ['free', 'creator', 'pro'];
@@ -29,50 +64,102 @@ export const PricingModal: React.FC<{ isStandalone?: boolean }> = ({ isStandalon
     <div className="space-y-8 max-w-5xl mx-auto py-2">
       
       {/* Header */}
-      <div className="text-center space-y-2">
-        <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300">
-          Flexible Studio Plans
-        </span>
+      <div className="text-center space-y-2.5">
+        <div className="flex items-center justify-center gap-2">
+          <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300">
+            Flexible Global Studio Plans
+          </span>
+          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+            INR Base (₹)
+          </span>
+        </div>
+
         <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
           Upgrade Your AI Voiceover Studio
         </h2>
         <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-xl mx-auto">
-          Scale with studio-grade audio output, lossless WAV downloads, priority queue processing, and commercial usage rights.
+          Scale with studio-grade neural audio output, lossless WAV downloads, priority queue processing, and commercial usage rights.
         </p>
 
-        {/* Monthly / Annual Toggle */}
-        <div className="inline-flex items-center gap-2 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 mt-2">
+        {/* Geo-Location & Currency Switcher Bar */}
+        <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+          
+          {/* Location Detection Button */}
           <button
-            onClick={() => setBillingCycle('monthly')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              billingCycle === 'monthly'
-                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
-                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-            }`}
+            type="button"
+            onClick={handleDetectLocation}
+            disabled={isDetectingLocation}
+            className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:border-primary-500 hover:text-primary-600 dark:hover:text-primary-400 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+            title="Auto-detect country using browser geolocation"
           >
-            Monthly Billing
+            <Compass className={`w-3.5 h-3.5 text-primary-500 ${isDetectingLocation ? 'animate-spin' : ''}`} />
+            <span>{isDetectingLocation ? 'Detecting Location...' : 'Auto-Detect Country / Currency'}</span>
           </button>
-          <button
-            onClick={() => setBillingCycle('annual')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
-              billingCycle === 'annual'
-                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
-                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <span>Annual Billing</span>
-            <span className="px-1.5 py-0.2 text-[10px] rounded bg-emerald-500 text-white font-bold">20% OFF</span>
-          </button>
+
+          {/* Currency Dropdown */}
+          <div className="flex items-center bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 px-2.5 py-1 shadow-2xs">
+            <Globe2 className="w-3.5 h-3.5 text-slate-400 mr-1.5" />
+            <span className="text-[11px] font-bold text-slate-400 mr-1.5">Currency:</span>
+            <select
+              value={currency.code}
+              onChange={(e) => handleCurrencySelect(e.target.value)}
+              className="text-xs font-bold bg-transparent text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1"
+            >
+              {Object.values(SUPPORTED_CURRENCIES).map((c) => (
+                <option key={c.code} value={c.code} className="dark:bg-slate-900 text-slate-900 dark:text-white">
+                  {c.flag} {c.code} ({c.symbol}) - {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Monthly / Annual Toggle */}
+          <div className="inline-flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+            <button
+              onClick={() => setBillingCycle('monthly')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                billingCycle === 'monthly'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => setBillingCycle('annual')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
+                billingCycle === 'annual'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <span>Annual</span>
+              <span className="px-1.5 py-0.2 text-[9px] rounded bg-emerald-500 text-white font-extrabold">-20%</span>
+            </button>
+          </div>
         </div>
+
+        {/* Location Status Message */}
+        {locationStatus && (
+          <div className="text-[11px] text-primary-600 dark:text-primary-400 font-medium flex items-center justify-center gap-1">
+            <MapPin className="w-3 h-3" />
+            <span>{locationStatus}</span>
+          </div>
+        )}
       </div>
 
       {/* Plan Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {planTypes.map((type) => {
-          const plan = PLANS[type];
+          const plan = plans[type];
           const isCurrent = user.plan === type;
           const isPopular = type === 'creator';
-          const price = billingCycle === 'annual' ? Math.round(plan.price * 0.8) : plan.price;
+          
+          // Compute Base INR price
+          const inrBasePrice = billingCycle === 'annual' ? Math.round(plan.price * 0.8) : plan.price;
+          
+          // Formatted display price in target currency
+          const formattedDisplayPrice = CurrencyService.formatPrice(inrBasePrice, currency.code);
 
           return (
             <div
@@ -99,11 +186,21 @@ export const PricingModal: React.FC<{ isStandalone?: boolean }> = ({ isStandalon
                   </div>
                 </div>
 
-                <div className="flex items-baseline gap-1 mb-6">
-                  <span className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white">
-                    ${price}
-                  </span>
-                  <span className="text-xs text-slate-400 font-semibold">/ month</span>
+                {/* Price Display */}
+                <div className="space-y-1 mb-6">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white">
+                      {formattedDisplayPrice}
+                    </span>
+                    <span className="text-xs text-slate-400 font-semibold">/ month</span>
+                  </div>
+
+                  {plan.price > 0 && (
+                    <div className="text-[11px] text-slate-400 flex items-center gap-1 font-mono">
+                      <span>Base: ₹{inrBasePrice.toLocaleString('en-IN')} INR/mo</span>
+                      {billingCycle === 'annual' && <span className="text-emerald-500 font-bold">(Save 20%)</span>}
+                    </div>
+                  )}
                 </div>
 
                 {/* Features list */}
@@ -136,13 +233,14 @@ export const PricingModal: React.FC<{ isStandalone?: boolean }> = ({ isStandalon
                         openCheckout(type);
                       }
                     }}
-                    className={`w-full py-3 rounded-2xl text-xs font-bold transition-all shadow-md ${
+                    className={`w-full py-3 rounded-2xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer ${
                       isPopular
                         ? 'bg-primary-600 hover:bg-primary-500 text-white shadow-primary-500/25'
                         : 'bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900'
                     }`}
                   >
-                    {type === 'free' ? 'Downgrade to Free' : `Upgrade via Razorpay`}
+                    <span>{type === 'free' ? 'Downgrade to Free' : `Upgrade to ${plan.name}`}</span>
+                    {type !== 'free' && <ArrowRight className="w-3.5 h-3.5" />}
                   </button>
                 )}
               </div>
@@ -164,114 +262,9 @@ export const PricingModal: React.FC<{ isStandalone?: boolean }> = ({ isStandalon
         </div>
         <div className="flex items-center gap-2">
           <Lock className="w-5 h-5 text-primary-500" />
-          <span>256-Bit SSL Encrypted checkout</span>
+          <span>Razorpay 256-Bit SSL Encrypted checkout</span>
         </div>
       </div>
-
-      {/* Simulated Stripe Checkout Modal */}
-      {selectedPlanForCheckout && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md animate-fadeIn">
-          <div className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 relative">
-            
-            <button
-              onClick={() => setSelectedPlanForCheckout(null)}
-              className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl bg-primary-100 dark:bg-primary-950 text-primary-600 dark:text-primary-400 flex items-center justify-center">
-                <CreditCard className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Secure Checkout</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Upgrading to {PLANS[selectedPlanForCheckout].name} (${PLANS[selectedPlanForCheckout].price}/mo)
-                </p>
-              </div>
-            </div>
-
-            <form onSubmit={handleCheckoutSubmit} className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Cardholder Name</label>
-                <input
-                  type="text"
-                  required
-                  defaultValue={user.name}
-                  placeholder="e.g. Jane Doe"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Card Number</label>
-                <input
-                  type="text"
-                  required
-                  defaultValue="4242 •••• •••• 4242"
-                  placeholder="4242 4242 4242 4242"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Expiry</label>
-                  <input
-                    type="text"
-                    required
-                    defaultValue="12/28"
-                    placeholder="MM/YY"
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">CVC / CVV</label>
-                  <input
-                    type="text"
-                    required
-                    defaultValue="888"
-                    placeholder="CVC"
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs text-slate-500 space-y-1">
-                <div className="flex justify-between">
-                  <span>Subtotal:</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-200">${PLANS[selectedPlanForCheckout].price}.00</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Taxes:</span>
-                  <span>$0.00</span>
-                </div>
-                <div className="flex justify-between pt-1 border-t border-slate-200 dark:border-slate-700 font-bold text-slate-900 dark:text-white">
-                  <span>Total Today:</span>
-                  <span>${PLANS[selectedPlanForCheckout].price}.00</span>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isProcessing}
-                className="w-full py-3 rounded-2xl text-xs font-bold text-white bg-primary-600 hover:bg-primary-500 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-primary-500/25"
-              >
-                {isProcessing ? (
-                  <span>Authorizing Payment...</span>
-                ) : (
-                  <>
-                    <Lock className="w-3.5 h-3.5" />
-                    <span>Confirm & Upgrade Plan (${PLANS[selectedPlanForCheckout].price})</span>
-                  </>
-                )}
-              </button>
-            </form>
-
-          </div>
-        </div>
-      )}
 
     </div>
   );

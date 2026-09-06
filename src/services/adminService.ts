@@ -1,11 +1,72 @@
-import { AdminUserItem, AdminTransactionItem, AdminVoiceOverride, NotificationItem, PlanType, AppView, UserProfile, AuthUser } from '../types';
+import { AdminUserItem, AdminTransactionItem, AdminVoiceOverride, NotificationItem, PlanType, AppView, UserProfile, AuthUser, PlanDetails } from '../types';
 import { StorageService } from './storage';
 import { VOICES } from '../data/voices';
 
 const STORAGE_KEYS = {
   ADMIN_USERS: 'voxaro_real_admin_users',
   ADMIN_TRANSACTIONS: 'voxaro_real_admin_transactions',
-  VOICE_OVERRIDES: 'voxaro_real_voice_overrides'
+  VOICE_OVERRIDES: 'voxaro_real_voice_overrides',
+  PLAN_CONFIGS: 'voxaro_custom_plans'
+};
+
+export const DEFAULT_PLAN_CONFIGS: Record<PlanType, PlanDetails> = {
+  free: {
+    type: 'free',
+    name: 'Free Tier',
+    price: 0,
+    monthlyLimit: 10000,
+    features: [
+      '10,000 characters / month',
+      'Standard AI voices (15+)',
+      'MP3 Audio Export',
+      'Standard Generation Queue',
+      'Watermark-free audio'
+    ],
+    badgeColor: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+    wavExport: false,
+    maxCharactersPerGen: 1500,
+    priorityQueue: false,
+    allVoices: false,
+  },
+  creator: {
+    type: 'creator',
+    name: 'Creator Studio',
+    price: 1199,
+    monthlyLimit: 100000,
+    features: [
+      '100,000 characters / month',
+      'All 25+ Premium & Neural Voices',
+      'MP3 & Lossless WAV Export',
+      'Fast Priority Generation',
+      'Unlimited History Storage',
+      'Commercial Usage License'
+    ],
+    badgeColor: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300',
+    wavExport: true,
+    maxCharactersPerGen: 3000,
+    priorityQueue: true,
+    allVoices: true,
+  },
+  pro: {
+    type: 'pro',
+    name: 'Pro Enterprise',
+    price: 2999,
+    monthlyLimit: 500000,
+    features: [
+      '500,000 characters / month',
+      'Ultra HD Neural Voices',
+      'Lossless 48kHz WAV & MP3 Export',
+      'Instant Dedicated Processing Queue',
+      'Developer API Key Access',
+      'Custom Pronunciation Rules Sync',
+      'Priority 24/7 Support'
+    ],
+    badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+    wavExport: true,
+    maxCharactersPerGen: 5000,
+    priorityQueue: true,
+    allVoices: true,
+  }
 };
 
 const ROOT_SUPER_ADMIN: AdminUserItem = {
@@ -267,4 +328,42 @@ export class AdminService {
 
     return newNotif;
   }
+
+  // --- PLAN ACCESS & PRICING CMS ---
+  static getPlanConfigs(): Record<PlanType, PlanDetails> {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.PLAN_CONFIGS);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+      localStorage.setItem(STORAGE_KEYS.PLAN_CONFIGS, JSON.stringify(DEFAULT_PLAN_CONFIGS));
+      return DEFAULT_PLAN_CONFIGS;
+    } catch {
+      return DEFAULT_PLAN_CONFIGS;
+    }
+  }
+
+  static savePlanConfigs(plans: Record<PlanType, PlanDetails>): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.PLAN_CONFIGS, JSON.stringify(plans));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('voxaro_plans_updated', { detail: plans }));
+      }
+    } catch (e) {
+      console.warn('Failed to save plan configs', e);
+    }
+  }
+
+  static resetPlanConfigs(): Record<PlanType, PlanDetails> {
+    try {
+      localStorage.setItem(STORAGE_KEYS.PLAN_CONFIGS, JSON.stringify(DEFAULT_PLAN_CONFIGS));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('voxaro_plans_updated', { detail: DEFAULT_PLAN_CONFIGS }));
+      }
+    } catch (e) {
+      console.warn('Failed to reset plan configs', e);
+    }
+    return DEFAULT_PLAN_CONFIGS;
+  }
 }
+

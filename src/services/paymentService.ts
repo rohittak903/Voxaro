@@ -18,21 +18,15 @@ export interface RazorpayCheckoutOptions {
 
 export class PaymentService {
   /**
-   * Plans INR pricing table
+   * Dynamic Plans INR pricing table from AdminService
    */
   static getPlanPriceInr(plan: PlanType, cycle: 'monthly' | 'yearly' = 'monthly'): { price: number; originalMonthly: number; savingsPercent: number } {
     if (plan === 'free') return { price: 0, originalMonthly: 0, savingsPercent: 0 };
     
-    if (plan === 'creator') {
-      const monthly = 1199; // ~15 USD
-      if (cycle === 'yearly') {
-        return { price: Math.round(monthly * 12 * 0.8), originalMonthly: monthly * 12, savingsPercent: 20 };
-      }
-      return { price: monthly, originalMonthly: monthly, savingsPercent: 0 };
-    }
+    const planConfigs = AdminService.getPlanConfigs();
+    const targetConfig = planConfigs[plan];
+    const monthly = targetConfig?.price || (plan === 'pro' ? 2999 : 1199);
 
-    // Pro
-    const monthly = 2999; // ~39 USD
     if (cycle === 'yearly') {
       return { price: Math.round(monthly * 12 * 0.8), originalMonthly: monthly * 12, savingsPercent: 20 };
     }

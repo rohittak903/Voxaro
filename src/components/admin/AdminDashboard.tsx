@@ -4,6 +4,7 @@ import { AdminUsersTab } from './AdminUsersTab';
 import { AdminTransactionsTab } from './AdminTransactionsTab';
 import { AdminVoicesTab } from './AdminVoicesTab';
 import { AdminBroadcastTab } from './AdminBroadcastTab';
+import { AdminPlansTab } from './AdminPlansTab';
 import { 
   ShieldCheck, 
   TrendingUp, 
@@ -12,11 +13,12 @@ import {
   Volume2, 
   Megaphone,
   Sparkles,
-  Lock
+  Lock,
+  Layers
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'analytics' | 'users' | 'transactions' | 'voices' | 'broadcast'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'users' | 'plans' | 'transactions' | 'voices' | 'broadcast'>('analytics');
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto animate-fadeIn pb-12">
@@ -79,6 +81,18 @@ export const AdminDashboard: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setActiveTab('plans')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+            activeTab === 'plans'
+              ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <Layers className="w-4 h-4 text-pink-500" />
+          <span>Plan Access & Pricing</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('transactions')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
             activeTab === 'transactions'
@@ -120,6 +134,7 @@ export const AdminDashboard: React.FC = () => {
       <div className="pt-2">
         {activeTab === 'analytics' && <AdminAnalyticsTab />}
         {activeTab === 'users' && <AdminUsersTab />}
+        {activeTab === 'plans' && <AdminPlansTab />}
         {activeTab === 'transactions' && <AdminTransactionsTab />}
         {activeTab === 'voices' && <AdminVoicesTab />}
         {activeTab === 'broadcast' && <AdminBroadcastTab />}

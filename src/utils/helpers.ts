@@ -145,23 +145,68 @@ export function formatDate(isoString: string): string {
   }
 }
 
+export interface EmotionParameters {
+  pitchMod: number;
+  rateMod: number;
+  resonance: number;
+  volumeMod: number;
+  description: string;
+}
+
 /**
  * Emotion tone parameters for Speech Synthesis & DSP
  */
-export function getEmotionParameters(tone: EmotionTone): { pitchMod: number; rateMod: number; resonance: number } {
+export function getEmotionParameters(tone: EmotionTone): EmotionParameters {
   switch (tone) {
     case 'happy':
-      return { pitchMod: 1.15, rateMod: 1.08, resonance: 1.2 };
+      return { 
+        pitchMod: 1.25, 
+        rateMod: 1.12, 
+        resonance: 1.3, 
+        volumeMod: 1.0, 
+        description: 'Bright, upbeat inflection (+25% pitch, +12% speed)' 
+      };
     case 'excited':
-      return { pitchMod: 1.25, rateMod: 1.2, resonance: 1.4 };
+      return { 
+        pitchMod: 1.45, 
+        rateMod: 1.28, 
+        resonance: 1.5, 
+        volumeMod: 1.0, 
+        description: 'High dynamic projection (+45% pitch, +28% speed)' 
+      };
     case 'sad':
-      return { pitchMod: 0.85, rateMod: 0.85, resonance: 0.8 };
+      return { 
+        pitchMod: 0.75, 
+        rateMod: 0.78, 
+        resonance: 0.7, 
+        volumeMod: 0.85, 
+        description: 'Somber, gentle cadence (-25% pitch, -22% speed)' 
+      };
     case 'serious':
-      return { pitchMod: 0.92, rateMod: 0.95, resonance: 1.0 };
+      return { 
+        pitchMod: 0.82, 
+        rateMod: 0.92, 
+        resonance: 1.1, 
+        volumeMod: 1.0, 
+        description: 'Authoritative, firm delivery (-18% pitch, -8% speed)' 
+      };
     case 'calm':
-      return { pitchMod: 0.95, rateMod: 0.85, resonance: 0.9 };
+      return { 
+        pitchMod: 0.88, 
+        rateMod: 0.82, 
+        resonance: 0.9, 
+        volumeMod: 0.92, 
+        description: 'Relaxed, soothing pace (-12% pitch, -18% speed)' 
+      };
     case 'neutral':
     default:
-      return { pitchMod: 1.0, rateMod: 1.0, resonance: 1.0 };
+      return { 
+        pitchMod: 1.0, 
+        rateMod: 1.0, 
+        resonance: 1.0, 
+        volumeMod: 1.0, 
+        description: 'Natural balanced studio baseline' 
+      };
   }
 }
+

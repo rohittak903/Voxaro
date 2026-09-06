@@ -1,69 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { AppView, AuthUser, InvoiceRecord, LocaleCode, NotificationItem, PlanDetails, PlanType, PronunciationRule, UserProfile } from '../types';
 import { StorageService } from '../services/storage';
-import { AdminService } from '../services/adminService';
+import { AdminService, DEFAULT_PLAN_CONFIGS } from '../services/adminService';
 import { LOCALES, LocaleStrings } from '../data/locales';
 import { INITIAL_NOTIFICATIONS } from '../data/notifications';
 
-export const PLANS: Record<PlanType, PlanDetails> = {
-  free: {
-    type: 'free',
-    name: 'Free Tier',
-    price: 0,
-    monthlyLimit: 10000,
-    features: [
-      '10,000 characters / month',
-      'Standard AI voices (15+)',
-      'MP3 Audio Export',
-      'Standard Generation Queue',
-      'Watermark-free audio'
-    ],
-    badgeColor: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
-    wavExport: false,
-    maxCharactersPerGen: 1500,
-    priorityQueue: false,
-    allVoices: false,
-  },
-  creator: {
-    type: 'creator',
-    name: 'Creator Studio',
-    price: 15,
-    monthlyLimit: 100000,
-    features: [
-      '100,000 characters / month',
-      'All 25+ Premium & Neural Voices',
-      'MP3 & Lossless WAV Export',
-      'Fast Priority Generation',
-      'Unlimited History Storage',
-      'Commercial Usage License'
-    ],
-    badgeColor: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300',
-    wavExport: true,
-    maxCharactersPerGen: 3000,
-    priorityQueue: true,
-    allVoices: true,
-  },
-  pro: {
-    type: 'pro',
-    name: 'Pro Enterprise',
-    price: 39,
-    monthlyLimit: 500000,
-    features: [
-      '500,000 characters / month',
-      'Ultra HD Neural Voices',
-      'Lossless 48kHz WAV & MP3 Export',
-      'Instant Dedicated Processing Queue',
-      'Developer API Key Access',
-      'Custom Pronunciation Rules Sync',
-      'Priority 24/7 Support'
-    ],
-    badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
-    wavExport: true,
-    maxCharactersPerGen: 5000,
-    priorityQueue: true,
-    allVoices: true,
-  }
-};
+export const PLANS: Record<PlanType, PlanDetails> = DEFAULT_PLAN_CONFIGS;
 
 export interface ToastMessage {
   id: string;
@@ -73,6 +15,7 @@ export interface ToastMessage {
 
 interface UserContextType {
   user: UserProfile;
+  plans: Record<PlanType, PlanDetails>;
   planDetails: PlanDetails;
   currentView: AppView;
   locale: LocaleCode;
@@ -129,6 +72,7 @@ interface UserContextType {
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [plans, setPlans] = useState<Record<PlanType, PlanDetails>>(() => AdminService.getPlanConfigs());
   const [user, setUser] = useState<UserProfile>(() => StorageService.getUserProfile());
   const [authUser, setAuthUser] = useState<AuthUser | null>(() => StorageService.loadAuthUser());
   const [currentView, setCurrentView] = useState<AppView>('editor');
@@ -160,6 +104,18 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return INITIAL_NOTIFICATIONS;
   });
   const [isTourActive, setIsTourActive] = useState(false);
+
+  useEffect(() => {
+    const handlePlansUpdated = () => {
+      setPlans(AdminService.getPlanConfigs());
+    };
+    window.addEventListener('voxaro_plans_updated', handlePlansUpdated);
+    window.addEventListener('storage', handlePlansUpdated);
+    return () => {
+      window.removeEventListener('voxaro_plans_updated', handlePlansUpdated);
+      window.removeEventListener('storage', handlePlansUpdated);
+    };
+  }, []);
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -244,14 +200,15 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(updated);
     setInvoices(StorageService.loadInvoices());
     AdminService.syncUserFromApp(updated, authUser);
-    showToast(`Successfully upgraded to ${PLANS[plan].name}!`, 'success');
+    const planName = (plans[plan] || DEFAULT_PLAN_CONFIGS[plan]).name;
+    showToast(`Successfully upgraded to ${planName}!`, 'success');
     setShowPricingModal(false);
     setShowCheckoutModal(false);
   };
 
   const recordUsage = (chars: number): boolean => {
-    const plan = PLANS[user.plan];
-    if (user.charactersUsedThisMonth + chars > plan.monthlyLimit) {
+    const currentPlan = plans[user.plan] || DEFAULT_PLAN_CONFIGS[user.plan];
+    if (user.charactersUsedThisMonth + chars > currentPlan.monthlyLimit) {
       showToast('Monthly character limit reached! Please upgrade your plan.', 'warning');
       setShowPricingModal(true);
       return false;
@@ -305,13 +262,14 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     StorageService.setTourCompleted(true);
   };
 
-  const planDetails = PLANS[user.plan];
+  const planDetails = plans[user.plan] || DEFAULT_PLAN_CONFIGS[user.plan];
   const t = LOCALES[locale] || LOCALES.en;
 
   return (
     <UserContext.Provider
       value={{
         user,
+        plans,
         planDetails,
         currentView,
         locale,

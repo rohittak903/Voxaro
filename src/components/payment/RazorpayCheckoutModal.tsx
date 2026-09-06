@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useUser } from '../../context/UserContext';
 import { PaymentService } from '../../services/paymentService';
-import { PLANS } from '../../context/UserContext';
+import { CurrencyService } from '../../services/currencyService';
 import { PlanType, InvoiceRecord } from '../../types';
 import { ReceiptPdfService } from '../../services/receiptPdfService';
 import { 
@@ -15,7 +15,8 @@ import {
   ArrowRight,
   Download,
   Lock,
-  QrCode
+  QrCode,
+  Globe2
 } from 'lucide-react';
 
 export const RazorpayCheckoutModal: React.FC = () => {
@@ -24,6 +25,7 @@ export const RazorpayCheckoutModal: React.FC = () => {
     setShowCheckoutModal, 
     checkoutTargetPlan, 
     user, 
+    plans,
     upgradePlan,
     showToast 
   } = useUser();
@@ -42,8 +44,13 @@ export const RazorpayCheckoutModal: React.FC = () => {
 
   if (!showCheckoutModal) return null;
 
-  const targetPlanDetails = PLANS[checkoutTargetPlan] || PLANS.creator;
+  const targetPlanDetails = (plans && plans[checkoutTargetPlan]) || {
+    name: 'Creator Studio',
+    monthlyLimit: 100000
+  };
   const pricing = PaymentService.getPlanPriceInr(checkoutTargetPlan, billingCycle);
+  const activeCurrency = CurrencyService.getActiveCurrency();
+  const convertedPriceStr = CurrencyService.formatPrice(pricing.price, activeCurrency.code);
 
   const handlePayNow = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -340,7 +347,10 @@ export const RazorpayCheckoutModal: React.FC = () => {
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2 text-xs">
               <div className="flex justify-between text-slate-500">
                 <span>Plan Subtotal ({billingCycle}):</span>
-                <span>₹{pricing.price.toLocaleString()} INR</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                  ₹{pricing.price.toLocaleString()} INR
+                  {activeCurrency.code !== 'INR' && <span className="ml-1 text-primary-500">({convertedPriceStr})</span>}
+                </span>
               </div>
               <div className="flex justify-between text-slate-500">
                 <span>GST (18% Included):</span>
@@ -348,7 +358,14 @@ export const RazorpayCheckoutModal: React.FC = () => {
               </div>
               <div className="flex justify-between pt-2 border-t border-slate-200 dark:border-slate-800 font-extrabold text-sm text-slate-900 dark:text-white">
                 <span>Total Amount Due:</span>
-                <span className="text-blue-600 dark:text-blue-400">₹{pricing.price.toLocaleString()} INR</span>
+                <div className="text-right">
+                  <span className="text-blue-600 dark:text-blue-400 block">₹{pricing.price.toLocaleString()} INR</span>
+                  {activeCurrency.code !== 'INR' && (
+                    <span className="text-[11px] font-semibold text-slate-400 font-mono">
+                      (Approx. {convertedPriceStr})
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -356,7 +373,7 @@ export const RazorpayCheckoutModal: React.FC = () => {
             <button
               type="submit"
               disabled={isProcessing}
-              className="w-full py-3 rounded-2xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25 transition-all disabled:opacity-50"
+              className="w-full py-3 rounded-2xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25 transition-all disabled:opacity-50 cursor-pointer"
             >
               {isProcessing ? (
                 <>

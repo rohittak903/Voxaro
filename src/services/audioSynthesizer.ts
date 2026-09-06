@@ -77,6 +77,8 @@ export class AudioSynthesisEngine {
 
   /**
    * Speaks text aloud through speakers using SpeechSynthesis with custom voice, pitch, speed, and callbacks
+  /**
+   * Speaks text aloud through speakers using SpeechSynthesis with custom voice, pitch, speed, and emotion tone
    */
   static speak(
     text: string,
@@ -103,13 +105,18 @@ export class AudioSynthesisEngine {
       utterance.voice = nativeVoice;
     }
     utterance.lang = voice.langCode;
-    utterance.rate = Math.max(0.5, Math.min(2.0, speed));
     
-    // Pitch calculation
+    // Calculate emotion modulation
     const emotionParams = getEmotionParameters(tone);
-    const pitchVal = 1.0 + (pitchSemitones * 0.05) + (emotionParams.pitchMod - 1.0);
-    utterance.pitch = Math.max(0.5, Math.min(2.0, pitchVal));
-    utterance.volume = 1.0;
+    
+    // Modulate speaking rate by speed & emotion multiplier
+    const finalRate = speed * emotionParams.rateMod;
+    utterance.rate = Math.max(0.4, Math.min(2.0, finalRate));
+    
+    // Pitch calculation with emotion multiplier & semitone offset
+    const calculatedPitch = (1.0 + (pitchSemitones * 0.05)) * emotionParams.pitchMod;
+    utterance.pitch = Math.max(0.2, Math.min(2.0, calculatedPitch));
+    utterance.volume = emotionParams.volumeMod || 1.0;
 
     utterance.onstart = () => callbacks?.onStart?.();
     utterance.onend = () => {
@@ -170,16 +177,18 @@ export class AudioSynthesisEngine {
   ): Promise<{ audioBlob: Blob; audioUrl: string; duration: number }> {
     this.init();
 
+    const emotionParams = getEmotionParameters(tone);
+
     onProgress?.(25, 'Analyzing text structure and phonetics...');
     await new Promise(r => setTimeout(r, 150));
 
-    onProgress?.(60, `Configuring acoustic voice model for ${voice.name}...`);
+    onProgress?.(60, `Configuring acoustic voice model for ${voice.name} (${tone} tone)...`);
     await new Promise(r => setTimeout(r, 150));
 
     onProgress?.(85, 'Synthesizing voice waveform audio buffer...');
 
-    // Calculate accurate duration matching the spoken speech speed
-    const duration = estimateAudioDuration(text, speed);
+    // Calculate accurate duration matching the spoken speech speed with emotion rate
+    const duration = estimateAudioDuration(text, speed * emotionParams.rateMod);
 
     // Render acoustic vocal formants for the exact text words
     const sampleRate = 44100;
@@ -190,12 +199,12 @@ export class AudioSynthesisEngine {
       sampleRate
     );
 
-    const baseFreq = (voice.gender === 'female' ? 220 : 140) * Math.pow(2, pitchSemitones / 12);
+    const baseFreq = (voice.gender === 'female' ? 220 : 140) * Math.pow(2, pitchSemitones / 12) * emotionParams.pitchMod;
     const words = text.split(/\s+/).filter(Boolean);
     const wordCount = Math.max(1, words.length);
     const wordDuration = duration / wordCount;
 
-    // Build vocal envelope & resonance matching the words
+    // Build vocal envelope & resonance matching the words and tone
     for (let w = 0; w < wordCount; w++) {
       const word = words[w];
       const startTime = w * wordDuration;
@@ -207,17 +216,17 @@ export class AudioSynthesisEngine {
 
       filter.type = 'bandpass';
       const charCode = word.charCodeAt(0) || 65;
-      const formantFreq = 500 + (charCode % 10) * 180;
+      const formantFreq = (500 + (charCode % 10) * 180) * emotionParams.resonance;
       filter.frequency.setValueAtTime(formantFreq, startTime);
-      filter.Q.setValueAtTime(4.5, startTime);
+      filter.Q.setValueAtTime(4.5 * emotionParams.resonance, startTime);
 
       osc.type = (w % 2 === 0) ? 'sawtooth' : 'triangle';
-      const pitchInflection = Math.sin((w / wordCount) * Math.PI) * 12;
+      const pitchInflection = Math.sin((w / wordCount) * Math.PI) * 12 * emotionParams.pitchMod;
       osc.frequency.setValueAtTime(baseFreq + pitchInflection, startTime);
       osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.96, endTime);
 
       gain.gain.setValueAtTime(0.001, startTime);
-      gain.gain.linearRampToValueAtTime(0.35, startTime + 0.03);
+      gain.gain.linearRampToValueAtTime(0.35 * (emotionParams.volumeMod || 1.0), startTime + 0.03);
       gain.gain.exponentialRampToValueAtTime(0.001, endTime);
 
       osc.connect(filter);
