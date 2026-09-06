@@ -71,8 +71,8 @@ export const AuthModal: React.FC = () => {
     setIsLoading(false);
   };
 
-  const handleGuestDemo = () => {
-    login('demo.guest@voxaro.ai', 'Guest Creator', 'guest');
+  const handleGuestAccess = () => {
+    login('guest@voxaro.ai', 'Guest User', 'guest');
   };
 
   return (
@@ -246,15 +246,15 @@ export const AuthModal: React.FC = () => {
               </button>
             </form>
 
-            {/* Frictionless 1-Click Guest Demo Mode */}
+            {/* 1-Click Guest Access */}
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 text-center">
               <button
                 type="button"
-                onClick={handleGuestDemo}
+                onClick={handleGuestAccess}
                 className="text-xs text-slate-500 dark:text-slate-400 hover:text-primary-500 flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
               >
                 <Zap className="w-3.5 h-3.5 text-amber-500" />
-                <span>Explore as <strong>Guest Demo User</strong></span>
+                <span>Continue as <strong>Guest User</strong></span>
               </button>
             </div>
 

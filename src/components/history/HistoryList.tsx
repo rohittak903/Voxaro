@@ -1,13 +1,18 @@
 import React, { useState, useMemo } from 'react';
 import { useAudio } from '../../context/AudioContext';
 import { useUser } from '../../context/UserContext';
+import { AwardService } from '../../services/awardService';
 import { HistoryCard } from './HistoryCard';
-import { History, Search, Trash2, Mic, AlertCircle, Sparkles } from 'lucide-react';
+import { History, Search, Trash2, Mic, AlertCircle, Sparkles, Trophy, Clock, Zap, Globe, ArrowRight } from 'lucide-react';
 
 export const HistoryList: React.FC = () => {
   const { history, clearHistory } = useAudio();
-  const { setCurrentView, t } = useUser();
+  const { user, authUser, setCurrentView, t } = useUser();
   const [searchQuery, setSearchQuery] = useState('');
+
+  const stats = useMemo(() => {
+    return AwardService.getRealtimeStats(history, user, authUser);
+  }, [history, user, authUser]);
 
   const filteredHistory = useMemo(() => {
     if (!searchQuery.trim()) return history;
@@ -19,6 +24,13 @@ export const HistoryList: React.FC = () => {
     );
   }, [history, searchQuery]);
 
+  const formatDuration = (seconds: number) => {
+    if (seconds < 60) return `${seconds}s`;
+    const mins = Math.floor(seconds / 60);
+    const rem = seconds % 60;
+    return `${mins}m ${rem}s`;
+  };
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-16">
       
@@ -28,29 +40,89 @@ export const HistoryList: React.FC = () => {
           <div className="flex items-center gap-2 mb-1">
             <History className="w-6 h-6 text-primary-600 dark:text-primary-400" />
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
-              Generation History
+              Saved Audios & Generation History
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-            Review, re-play, edit, or export your past voice synthesis projects
+            Review, re-play, edit, or export your voice synthesis projects with live metrics
           </p>
         </div>
 
         {history.length > 0 && (
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setCurrentView('awards')}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/30 transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <Trophy className="w-3.5 h-3.5 text-amber-500" />
+              <span>{stats.unlockedAwardsCount} Awards Unlocked</span>
+              <ArrowRight className="w-3 h-3" />
+            </button>
+
+            <button
               onClick={() => {
                 if (confirm('Are you sure you want to clear your entire generation history?')) {
                   clearHistory();
                 }
               }}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 transition-colors flex items-center gap-1.5"
+              className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Clear History</span>
             </button>
           </div>
         )}
+      </div>
+
+      {/* Real-time Live Audio Metrics Panel */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary-100 dark:bg-primary-950 text-primary-600 dark:text-primary-400 flex items-center justify-center shrink-0">
+            <Mic className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Audios</span>
+            <span className="text-base font-extrabold text-slate-900 dark:text-white">{stats.totalAudios}</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+            <Clock className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[10px] uppercase font-bold text-slate-400 block">Playback Time</span>
+            <span className="text-base font-extrabold text-slate-900 dark:text-white">{formatDuration(stats.totalDurationSeconds)}</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+            <Zap className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Chars</span>
+            <span className="text-base font-extrabold text-slate-900 dark:text-white">{stats.totalCharacters.toLocaleString()}</span>
+          </div>
+        </div>
+
+        <div 
+          onClick={() => setCurrentView('awards')}
+          className="flex items-center gap-3 cursor-pointer p-1.5 -m-1.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+          title="Click to view full awards dashboard"
+        >
+          <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+            <Trophy className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[10px] uppercase font-bold text-slate-400 block flex items-center gap-1">
+              Awards <ArrowRight className="w-2.5 h-2.5 text-amber-500" />
+            </span>
+            <span className="text-base font-extrabold text-amber-600 dark:text-amber-400">
+              {stats.unlockedAwardsCount} / {stats.totalAwardsCount}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Search Bar */}

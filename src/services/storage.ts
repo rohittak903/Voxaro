@@ -15,11 +15,11 @@ const STORAGE_KEYS = {
 
 const DEFAULT_USER: UserProfile = {
   id: 'usr-default-01',
-  name: 'Demo Creator',
-  email: 'creator@voxcraft.ai',
+  name: 'Voxaro Creator',
+  email: 'creator@voxaro.ai',
   avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
   plan: 'free',
-  charactersUsedThisMonth: 1250,
+  charactersUsedThisMonth: 0,
   favorites: ['voice-en-us-emma', 'voice-en-us-ava'],
   customPronunciations: [
     { id: 'rule-1', original: 'AI', replacement: 'A.I.', caseSensitive: false, enabled: true },

@@ -19,8 +19,9 @@ import {
   LogIn, 
   ShieldCheck, 
   Compass,
-  Lock
+  Trophy
 } from 'lucide-react';
+import { AwardService } from '../../services/awardService';
 
 interface MobileDrawerProps {
   isOpen: boolean;
@@ -51,10 +52,14 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose, onO
 
   if (!isOpen) return null;
 
+  const awards = AwardService.calculateAwards(history, user, authUser);
+  const unlockedAwards = awards.filter(a => a.isUnlocked).length;
+
   const navItems: { id: AppView; label: string; icon: React.ReactNode; badge?: string | number }[] = [
     { id: 'editor', label: 'Studio Editor', icon: <Mic className="w-5 h-5" /> },
     { id: 'library', label: 'Voice Library', icon: <Library className="w-5 h-5" />, badge: '25+' },
     { id: 'history', label: 'Saved Audios', icon: <History className="w-5 h-5" />, badge: history.length > 0 ? history.length : undefined },
+    { id: 'awards', label: 'Awards & Badges', icon: <Trophy className="w-5 h-5 text-amber-500" />, badge: `${unlockedAwards} Won` },
     { id: 'api', label: 'API & Embed Widget', icon: <Terminal className="w-5 h-5" />, badge: 'NEW' },
     { id: 'pricing', label: 'Subscription Plans', icon: <CreditCard className="w-5 h-5" />, badge: user.plan === 'free' ? 'PRO' : undefined },
   ];
@@ -316,20 +321,6 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose, onO
             </button>
           </div>
 
-        </div>
-
-        {/* Drawer Footer: Admin Portal Link */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40">
-          <a
-            href="/admin"
-            className="w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-semibold text-slate-500 hover:text-primary-600 dark:text-slate-400 dark:hover:text-primary-400 hover:bg-white dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-800 transition-all"
-          >
-            <div className="flex items-center gap-2">
-              <Lock className="w-3.5 h-3.5 text-amber-500" />
-              <span>Isolated Admin Portal</span>
-            </div>
-            <span className="text-[10px] font-mono text-slate-400">PIN Gate</span>
-          </a>
         </div>
 
       </aside>

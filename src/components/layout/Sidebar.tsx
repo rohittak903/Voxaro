@@ -2,16 +2,21 @@ import React from 'react';
 import { useUser } from '../../context/UserContext';
 import { useAudio } from '../../context/AudioContext';
 import { AppView } from '../../types';
-import { Mic, Library, History, CreditCard, Settings, Flame, Layers, Terminal } from 'lucide-react';
+import { Mic, Library, History, CreditCard, Settings, Flame, Layers, Terminal, Trophy } from 'lucide-react';
+import { AwardService } from '../../services/awardService';
 
 export const Sidebar: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSettings }) => {
-  const { currentView, setCurrentView, t, user, planDetails } = useUser();
+  const { currentView, setCurrentView, t, user, authUser, planDetails } = useUser();
   const { history } = useAudio();
+
+  const awards = AwardService.calculateAwards(history, user, authUser);
+  const unlockedAwards = awards.filter(a => a.isUnlocked).length;
 
   const navItems: { id: AppView; label: string; icon: React.ReactNode; badge?: string | number }[] = [
     { id: 'editor', label: t.navEditor, icon: <Mic className="w-5 h-5" /> },
     { id: 'library', label: t.navVoices, icon: <Library className="w-5 h-5" />, badge: '25+' },
     { id: 'history', label: t.navHistory, icon: <History className="w-5 h-5" />, badge: history.length > 0 ? history.length : undefined },
+    { id: 'awards', label: 'Awards & Badges', icon: <Trophy className="w-5 h-5 text-amber-500" />, badge: `${unlockedAwards} Won` },
     { id: 'api', label: 'API & Integrations', icon: <Terminal className="w-5 h-5" />, badge: 'NEW' },
     { id: 'pricing', label: t.navPricing, icon: <CreditCard className="w-5 h-5" />, badge: user.plan === 'free' ? 'PRO' : undefined },
   ];

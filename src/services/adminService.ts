@@ -64,20 +64,6 @@ const INITIAL_USERS: AdminUserItem[] = [
     joinedAt: '2026-09-01T16:20:00Z',
     lastActiveAt: '2026-09-05T18:10:00Z',
     totalGenerations: 12
-  },
-  {
-    id: 'usr-005',
-    name: 'Spam Bot Account',
-    email: 'test_scraper_99@tempmail.org',
-    role: 'user',
-    plan: 'free',
-    charactersUsedThisMonth: 10000,
-    monthlyLimit: 10000,
-    status: 'suspended',
-    provider: 'email',
-    joinedAt: '2026-09-03T02:00:00Z',
-    lastActiveAt: '2026-09-03T02:15:00Z',
-    totalGenerations: 25
   }
 ];
 

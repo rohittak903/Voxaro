@@ -8,6 +8,7 @@ import { TextEditor } from './components/editor/TextEditor';
 import { VoiceLibrary } from './components/voices/VoiceLibrary';
 import { HistoryList } from './components/history/HistoryList';
 import { ApiPortal } from './components/api/ApiPortal';
+import { AwardsCenter } from './components/awards/AwardsCenter';
 import { PricingModal } from './components/pricing/PricingModal';
 import { SettingsModal } from './components/settings/SettingsModal';
 import { OnboardingModal } from './components/onboarding/OnboardingModal';
@@ -42,6 +43,7 @@ const MainAppContent: React.FC = () => {
           {currentView === 'editor' && <TextEditor />}
           {currentView === 'library' && <VoiceLibrary />}
           {currentView === 'history' && <HistoryList />}
+          {currentView === 'awards' && <AwardsCenter />}
           {currentView === 'api' && <ApiPortal />}
           {currentView === 'pricing' && <PricingModal isStandalone={true} />}
         </main>

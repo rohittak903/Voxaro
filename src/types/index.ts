@@ -107,7 +107,32 @@ export interface PresetSample {
 
 export type LocaleCode = 'en' | 'es' | 'fr' | 'de' | 'hi';
 
-export type AppView = 'editor' | 'library' | 'history' | 'pricing' | 'settings' | 'api' | 'admin';
+export type AppView = 'editor' | 'library' | 'history' | 'pricing' | 'settings' | 'api' | 'awards';
+
+export interface RealtimeAudioStats {
+  totalAudios: number;
+  totalCharacters: number;
+  totalDurationSeconds: number;
+  uniqueVoicesUsed: number;
+  uniqueLanguagesUsed: number;
+  unlockedAwardsCount: number;
+  totalAwardsCount: number;
+}
+
+export interface AwardBadge {
+  id: string;
+  title: string;
+  description: string;
+  category: 'generation' | 'exploration' | 'studio' | 'account';
+  icon: string;
+  tier: 'bronze' | 'silver' | 'gold' | 'platinum';
+  targetValue: number;
+  currentValue: number;
+  unit: string;
+  isUnlocked: boolean;
+  unlockedAt?: string;
+  progressPercent: number;
+}
 
 export type ApiKeyScope = 'full_access' | 'synthesis_only' | 'read_only';
 

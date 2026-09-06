@@ -77,12 +77,6 @@ const AdminPortalContent: React.FC = () => {
     }, 400);
   };
 
-  const handleQuickDemoFill = () => {
-    setEmail(MASTER_EMAIL);
-    setPasscode(MASTER_PIN);
-    setErrorMsg('');
-  };
-
   const handleLogout = () => {
     sessionStorage.removeItem(ADMIN_SESSION_KEY);
     setIsAuthenticated(false);
@@ -245,17 +239,6 @@ const AdminPortalContent: React.FC = () => {
                   )}
                 </button>
               </form>
-
-              {/* Quick autofill helper for easy access */}
-              <div className="pt-4 border-t border-slate-800/80 text-center">
-                <button
-                  type="button"
-                  onClick={handleQuickDemoFill}
-                  className="text-xs text-amber-400 hover:text-amber-300 font-semibold underline decoration-dotted underline-offset-4 transition-colors"
-                >
-                  ⚡ Auto-fill Master Admin Credentials (Demo)
-                </button>
-              </div>
 
               {/* Security info note */}
               <div className="p-3 rounded-2xl bg-slate-950/60 border border-slate-800/60 text-[11px] text-slate-500 space-y-1">
