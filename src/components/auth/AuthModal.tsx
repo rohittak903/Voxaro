@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useUser } from '../../context/UserContext';
-import { useGoogleLogin } from '@react-oauth/google';
 import { GoogleOAuthModal } from './GoogleOAuthModal';
 import { 
   X, 
@@ -34,35 +33,19 @@ export const AuthModal: React.FC = () => {
     showToast(`Signed in as ${googleUser.name} (${googleUser.email})`, 'success');
   };
 
-  const triggerGoogleLogin = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      try {
-        setIsLoading(true);
-        const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
-        });
-        const profile = await res.json();
-        if (profile && profile.email) {
-          handleGoogleSuccess({
-            email: profile.email,
-            name: profile.name || profile.given_name || profile.email.split('@')[0],
-            avatarUrl: profile.picture,
-          });
-        } else {
-          setShowGoogleModal(true);
-        }
-      } catch (err) {
-        console.error('Failed to fetch Google profile:', err);
-        setShowGoogleModal(true);
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    onError: (error) => {
-      console.warn('Google SDK error, showing Google account chooser:', error);
+  const handleSocialLogin = async (provider: 'google' | 'github') => {
+    if (provider === 'google') {
+      // Open Google Account Chooser & Permissions Consent Dialog
       setShowGoogleModal(true);
-    },
-  });
+      return;
+    }
+    setIsLoading(true);
+    await new Promise(r => setTimeout(r, 600));
+    const demoEmail = 'dev.creator@github.com';
+    const demoName = 'GitHub Creator';
+    login(demoEmail, demoName, 'github');
+    setIsLoading(false);
+  };
 
   if (!showAuthModal) return null;
 
@@ -85,23 +68,6 @@ export const AuthModal: React.FC = () => {
     } else {
       signup(email, name || email.split('@')[0]);
     }
-    setIsLoading(false);
-  };
-
-  const handleSocialLogin = async (provider: 'google' | 'github') => {
-    if (provider === 'google') {
-      try {
-        triggerGoogleLogin();
-      } catch (err) {
-        setShowGoogleModal(true);
-      }
-      return;
-    }
-    setIsLoading(true);
-    await new Promise(r => setTimeout(r, 600));
-    const demoEmail = 'dev.creator@github.com';
-    const demoName = 'GitHub Creator';
-    login(demoEmail, demoName, 'github');
     setIsLoading(false);
   };
 

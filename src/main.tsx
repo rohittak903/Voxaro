@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { GoogleOAuthProvider } from '@react-oauth/google';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import App from './App';
 import './index.css';
 
@@ -8,9 +9,11 @@ const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '249206934347-om
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <GoogleOAuthProvider clientId={googleClientId}>
-      <App />
-    </GoogleOAuthProvider>
+    <ErrorBoundary>
+      <GoogleOAuthProvider clientId={googleClientId}>
+        <App />
+      </GoogleOAuthProvider>
+    </ErrorBoundary>
   </React.StrictMode>,
 );
 
