@@ -1,5 +1,6 @@
-import { InvoiceRecord, PlanType } from '../types';
+import { InvoiceRecord, PlanType, AdminTransactionItem } from '../types';
 import { StorageService } from './storage';
+import { AdminService } from './adminService';
 
 export interface RazorpayCheckoutOptions {
   plan: PlanType;
@@ -65,6 +66,21 @@ export class PaymentService {
     StorageService.addInvoice(newInvoice);
     // Upgrade user plan
     StorageService.updatePlan(options.plan);
+
+    // Real-time sync with Admin Transactions & Financial metrics
+    const adminTx: AdminTransactionItem = {
+      id: newInvoice.id,
+      invoiceNumber: newInvoice.invoiceNumber,
+      customerName: options.customerName,
+      customerEmail: options.customerEmail,
+      plan: options.plan,
+      amountInr: options.amountInr,
+      paymentMethod: options.paymentMethod as any,
+      paymentId,
+      date: newInvoice.date,
+      status: 'paid'
+    };
+    AdminService.recordRealTransaction(adminTx);
 
     return newInvoice;
   }

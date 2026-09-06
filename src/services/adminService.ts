@@ -1,147 +1,66 @@
-import { AdminUserItem, AdminTransactionItem, AdminVoiceOverride, NotificationItem, PlanType, AppView } from '../types';
+import { AdminUserItem, AdminTransactionItem, AdminVoiceOverride, NotificationItem, PlanType, AppView, UserProfile, AuthUser } from '../types';
 import { StorageService } from './storage';
 import { VOICES } from '../data/voices';
 
 const STORAGE_KEYS = {
-  ADMIN_USERS: 'voxcraft_admin_users',
-  ADMIN_TRANSACTIONS: 'voxcraft_admin_transactions',
-  VOICE_OVERRIDES: 'voxcraft_voice_overrides'
+  ADMIN_USERS: 'voxaro_real_admin_users',
+  ADMIN_TRANSACTIONS: 'voxaro_real_admin_transactions',
+  VOICE_OVERRIDES: 'voxaro_real_voice_overrides'
 };
 
-const INITIAL_USERS: AdminUserItem[] = [
-  {
-    id: 'usr-001',
-    name: 'Sarah Jenkins',
-    email: 'sarah.podcast@gmail.com',
-    role: 'user',
-    plan: 'pro',
-    charactersUsedThisMonth: 148500,
-    monthlyLimit: 500000,
-    status: 'active',
-    provider: 'google',
-    joinedAt: '2026-08-14T10:30:00Z',
-    lastActiveAt: '2026-09-06T11:45:00Z',
-    totalGenerations: 64
-  },
-  {
-    id: 'usr-002',
-    name: 'Vikram Sharma',
-    email: 'vikram.tech@outlook.com',
-    role: 'user',
-    plan: 'creator',
-    charactersUsedThisMonth: 82400,
-    monthlyLimit: 100000,
-    status: 'active',
-    provider: 'email',
-    joinedAt: '2026-08-20T14:15:00Z',
-    lastActiveAt: '2026-09-06T09:20:00Z',
-    totalGenerations: 41
-  },
-  {
-    id: 'usr-003',
-    name: 'Elena Vance',
-    email: 'elena@novamedia.co',
-    role: 'super_admin',
-    plan: 'pro',
-    charactersUsedThisMonth: 34200,
-    monthlyLimit: 500000,
-    status: 'active',
-    provider: 'github',
-    joinedAt: '2026-07-01T08:00:00Z',
-    lastActiveAt: '2026-09-06T13:00:00Z',
-    totalGenerations: 182
-  },
-  {
-    id: 'usr-004',
-    name: 'Rajesh Patel',
-    email: 'rajesh.marketing@gmail.com',
-    role: 'user',
-    plan: 'free',
-    charactersUsedThisMonth: 9800,
-    monthlyLimit: 10000,
-    status: 'active',
-    provider: 'google',
-    joinedAt: '2026-09-01T16:20:00Z',
-    lastActiveAt: '2026-09-05T18:10:00Z',
-    totalGenerations: 12
-  }
-];
-
-const INITIAL_TRANSACTIONS: AdminTransactionItem[] = [
-  {
-    id: 'tx-001',
-    invoiceNumber: 'INV-2026-8941',
-    customerName: 'Sarah Jenkins',
-    customerEmail: 'sarah.podcast@gmail.com',
-    plan: 'pro',
-    amountInr: 2999,
-    paymentMethod: 'razorpay_upi',
-    paymentId: 'pay_rzp_9jK2mN8vX4q',
-    date: '2026-09-06T11:40:00Z',
-    status: 'paid'
-  },
-  {
-    id: 'tx-002',
-    invoiceNumber: 'INV-2026-8940',
-    customerName: 'Vikram Sharma',
-    customerEmail: 'vikram.tech@outlook.com',
-    plan: 'creator',
-    amountInr: 1199,
-    paymentMethod: 'razorpay_card',
-    paymentId: 'pay_rzp_8hG5tY2wB1z',
-    date: '2026-09-05T16:20:00Z',
-    status: 'paid'
-  },
-  {
-    id: 'tx-003',
-    invoiceNumber: 'INV-2026-8939',
-    customerName: 'Arjun Mehta',
-    customerEmail: 'arjun@edulearn.in',
-    plan: 'pro',
-    amountInr: 28790, // Annual
-    paymentMethod: 'razorpay_netbanking',
-    paymentId: 'pay_rzp_7fD4rE9qC3m',
-    date: '2026-09-04T10:15:00Z',
-    status: 'paid'
-  },
-  {
-    id: 'tx-004',
-    invoiceNumber: 'INV-2026-8938',
-    customerName: 'David Miller',
-    customerEmail: 'david@acme.io',
-    plan: 'creator',
-    amountInr: 1199,
-    paymentMethod: 'razorpay_upi',
-    paymentId: 'pay_rzp_6bV3xW8pA2k',
-    date: '2026-09-03T14:50:00Z',
-    status: 'paid'
-  },
-  {
-    id: 'tx-005',
-    invoiceNumber: 'INV-2026-8937',
-    customerName: 'Priya Sundaram',
-    customerEmail: 'priya.s@gmail.com',
-    plan: 'creator',
-    amountInr: 1199,
-    paymentMethod: 'razorpay_card',
-    paymentId: 'pay_rzp_5nM2qL7vJ9x',
-    date: '2026-09-02T09:30:00Z',
-    status: 'refunded'
-  }
-];
+const ROOT_SUPER_ADMIN: AdminUserItem = {
+  id: 'usr-admin-root',
+  name: 'Super Administrator',
+  email: 'admin@voxaro.ai',
+  role: 'super_admin',
+  plan: 'pro',
+  charactersUsedThisMonth: 0,
+  monthlyLimit: 500000,
+  status: 'active',
+  provider: 'email',
+  joinedAt: '2026-09-01T00:00:00Z',
+  lastActiveAt: new Date().toISOString(),
+  totalGenerations: 0
+};
 
 export class AdminService {
-  // --- USERS MANAGEMENT ---
+  // --- USERS MANAGEMENT (100% REAL-TIME) ---
   static getUsers(): AdminUserItem[] {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.ADMIN_USERS);
       if (!data) {
-        localStorage.setItem(STORAGE_KEYS.ADMIN_USERS, JSON.stringify(INITIAL_USERS));
-        return INITIAL_USERS;
+        // Initialize with super admin and current active app user if present
+        const initialUsers: AdminUserItem[] = [ROOT_SUPER_ADMIN];
+        
+        try {
+          const currentProfile = StorageService.getUserProfile();
+          const authUser = StorageService.loadAuthUser();
+          const history = StorageService.loadHistory();
+          
+          if (authUser && authUser.email !== 'admin@voxaro.ai') {
+            initialUsers.push({
+              id: authUser.id || 'usr-live-01',
+              name: authUser.name || currentProfile.name,
+              email: authUser.email,
+              role: 'user',
+              plan: currentProfile.plan || 'free',
+              charactersUsedThisMonth: currentProfile.charactersUsedThisMonth || 0,
+              monthlyLimit: currentProfile.plan === 'pro' ? 500000 : (currentProfile.plan === 'creator' ? 100000 : 10000),
+              status: 'active',
+              provider: authUser.provider || 'google',
+              joinedAt: authUser.createdAt || new Date().toISOString(),
+              lastActiveAt: new Date().toISOString(),
+              totalGenerations: history.length
+            });
+          }
+        } catch {}
+
+        localStorage.setItem(STORAGE_KEYS.ADMIN_USERS, JSON.stringify(initialUsers));
+        return initialUsers;
       }
       return JSON.parse(data);
     } catch {
-      return INITIAL_USERS;
+      return [ROOT_SUPER_ADMIN];
     }
   }
 
@@ -150,6 +69,52 @@ export class AdminService {
       localStorage.setItem(STORAGE_KEYS.ADMIN_USERS, JSON.stringify(users));
     } catch (e) {
       console.warn('Failed to save admin users', e);
+    }
+  }
+
+  /**
+   * Automatically syncs real users from the application in real-time
+   */
+  static syncUserFromApp(profile: UserProfile, authUser: AuthUser | null, generationsCount?: number): void {
+    try {
+      const users = this.getUsers();
+      const email = authUser?.email || profile.email;
+      if (!email || email === 'admin@voxaro.ai') return;
+
+      const existingIndex = users.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
+      const now = new Date().toISOString();
+      const genCount = generationsCount !== undefined ? generationsCount : StorageService.loadHistory().length;
+
+      if (existingIndex >= 0) {
+        users[existingIndex] = {
+          ...users[existingIndex],
+          name: profile.name || authUser?.name || users[existingIndex].name,
+          plan: profile.plan,
+          charactersUsedThisMonth: profile.charactersUsedThisMonth,
+          provider: authUser?.provider || users[existingIndex].provider,
+          lastActiveAt: now,
+          totalGenerations: Math.max(users[existingIndex].totalGenerations, genCount)
+        };
+      } else {
+        users.push({
+          id: authUser?.id || profile.id || 'usr-' + Date.now(),
+          name: profile.name || authUser?.name || 'Studio Creator',
+          email,
+          role: 'user',
+          plan: profile.plan,
+          charactersUsedThisMonth: profile.charactersUsedThisMonth,
+          monthlyLimit: profile.plan === 'pro' ? 500000 : (profile.plan === 'creator' ? 100000 : 10000),
+          status: 'active',
+          provider: authUser?.provider || 'google',
+          joinedAt: authUser?.createdAt || now,
+          lastActiveAt: now,
+          totalGenerations: genCount
+        });
+      }
+
+      this.saveUsers(users);
+    } catch (e) {
+      console.warn('Failed to sync user to admin registry', e);
     }
   }
 
@@ -187,17 +152,33 @@ export class AdminService {
     return users;
   }
 
-  // --- TRANSACTIONS & REVENUE ---
+  static deleteUser(userId: string): AdminUserItem[] {
+    const users = this.getUsers().filter(u => u.id !== userId && u.id !== 'usr-admin-root');
+    this.saveUsers(users);
+    return users;
+  }
+
+  // --- TRANSACTIONS & REVENUE (100% REAL-TIME) ---
   static getTransactions(): AdminTransactionItem[] {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.ADMIN_TRANSACTIONS);
       if (!data) {
-        localStorage.setItem(STORAGE_KEYS.ADMIN_TRANSACTIONS, JSON.stringify(INITIAL_TRANSACTIONS));
-        return INITIAL_TRANSACTIONS;
+        // Real-time: start with empty transactions list (0 fake data)
+        return [];
       }
       return JSON.parse(data);
     } catch {
-      return INITIAL_TRANSACTIONS;
+      return [];
+    }
+  }
+
+  static recordRealTransaction(tx: AdminTransactionItem): void {
+    try {
+      const existing = this.getTransactions();
+      const updated = [tx, ...existing.filter(item => item.id !== tx.id)];
+      localStorage.setItem(STORAGE_KEYS.ADMIN_TRANSACTIONS, JSON.stringify(updated));
+    } catch (e) {
+      console.warn('Failed to record real transaction in admin service', e);
     }
   }
 
@@ -211,14 +192,22 @@ export class AdminService {
     const transactions = this.getTransactions();
     const paidTxs = transactions.filter(t => t.status === 'paid');
     const totalRevenue = paidTxs.reduce((acc, t) => acc + t.amountInr, 0);
-    const mrr = paidTxs.filter(t => new Date(t.date).getMonth() === new Date().getMonth()).reduce((acc, t) => acc + t.amountInr, 0);
+    
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    const mrr = paidTxs
+      .filter(t => {
+        const d = new Date(t.date);
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+      })
+      .reduce((acc, t) => acc + t.amountInr, 0);
 
     const users = this.getUsers();
     const activeSubs = users.filter(u => u.plan !== 'free' && u.status === 'active').length;
 
     return {
       totalRevenueInr: totalRevenue,
-      mrrInr: mrr || 34187,
+      mrrInr: mrr,
       paidOrdersCount: paidTxs.length,
       activeSubscribersCount: activeSubs,
       avgOrderValueInr: paidTxs.length > 0 ? Math.round(totalRevenue / paidTxs.length) : 0

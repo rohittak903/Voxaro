@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { AppView, AuthUser, InvoiceRecord, LocaleCode, NotificationItem, PlanDetails, PlanType, PronunciationRule, UserProfile } from '../types';
 import { StorageService } from '../services/storage';
+import { AdminService } from '../services/adminService';
 import { LOCALES, LocaleStrings } from '../data/locales';
 import { INITIAL_NOTIFICATIONS } from '../data/notifications';
 
@@ -193,6 +194,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(updatedProfile);
     StorageService.saveUserProfile(updatedProfile);
 
+    // Real-time sync with Admin Registry
+    AdminService.syncUserFromApp(updatedProfile, newAuth);
+
     setShowAuthModal(false);
     showToast(`Welcome back, ${displayName}!`, 'success');
   };
@@ -218,22 +222,18 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
-    const id = Date.now().toString() + Math.random().toString(36).substring(2, 5);
-    setToasts(prev => [...prev, { id, type, message }]);
+    const id = 'toast-' + Date.now() + Math.random().toString(36).substring(2, 6);
+    setToasts((prev) => [...prev, { id, type, message }]);
     setTimeout(() => {
       removeToast(id);
     }, 4000);
   };
 
   const removeToast = (id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
+    setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
   const openCheckout = (plan: PlanType) => {
-    if (plan === 'free') {
-      upgradePlan('free');
-      return;
-    }
     setCheckoutTargetPlan(plan);
     setShowPricingModal(false);
     setShowCheckoutModal(true);
@@ -243,6 +243,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const updated = StorageService.updatePlan(plan);
     setUser(updated);
     setInvoices(StorageService.loadInvoices());
+    AdminService.syncUserFromApp(updated, authUser);
     showToast(`Successfully upgraded to ${PLANS[plan].name}!`, 'success');
     setShowPricingModal(false);
     setShowCheckoutModal(false);
@@ -257,6 +258,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     const updated = StorageService.incrementUsage(chars);
     setUser(updated);
+    AdminService.syncUserFromApp(updated, authUser);
     return true;
   };
 

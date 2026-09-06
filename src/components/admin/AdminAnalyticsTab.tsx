@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { AdminService } from '../../services/adminService';
+import { StorageService } from '../../services/storage';
 import { VOICES } from '../../data/voices';
 import { 
   TrendingUp, 
@@ -20,13 +21,48 @@ export const AdminAnalyticsTab: React.FC = () => {
 
   const totalCharsProcessed = users.reduce((acc, u) => acc + (u.charactersUsedThisMonth || 0), 0);
 
-  const topVoices = [
-    { name: 'Emma (English US)', lang: 'en-US', share: '38%', count: '240k chars', color: 'bg-indigo-500' },
-    { name: 'Kavya (Hindi)', lang: 'hi-IN', share: '26%', count: '164k chars', color: 'bg-purple-500' },
-    { name: 'Mateo (Spanish)', lang: 'es-ES', share: '18%', count: '113k chars', color: 'bg-emerald-500' },
-    { name: 'Rohit (Hindi)', lang: 'hi-IN', share: '12%', count: '75k chars', color: 'bg-amber-500' },
-    { name: 'Camille (French)', lang: 'fr-FR', share: '6%', count: '38k chars', color: 'bg-rose-500' },
-  ];
+  const topVoices = useMemo(() => {
+    const history = StorageService.loadHistory();
+    const voiceUsageMap: Record<string, { name: string; lang: string; chars: number; count: number }> = {};
+
+    history.forEach((job) => {
+      const vId = job.voice.id;
+      if (!voiceUsageMap[vId]) {
+        voiceUsageMap[vId] = {
+          name: `${job.voice.name} (${job.voice.language})`,
+          lang: job.voice.language,
+          chars: 0,
+          count: 0
+        };
+      }
+      voiceUsageMap[vId].chars += (job.inputText?.length || 0);
+      voiceUsageMap[vId].count += 1;
+    });
+
+    const totalGenerations = history.length || 1;
+    const colors = ['bg-indigo-500', 'bg-purple-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500'];
+
+    const sorted = Object.values(voiceUsageMap)
+      .sort((a, b) => b.chars - a.chars)
+      .slice(0, 5)
+      .map((item, idx) => ({
+        name: item.name,
+        lang: item.lang,
+        share: `${Math.round((item.count / totalGenerations) * 100)}%`,
+        count: `${item.chars.toLocaleString()} chars`,
+        color: colors[idx % colors.length]
+      }));
+
+    if (sorted.length > 0) return sorted;
+
+    // Fallback default voice distribution when fresh
+    return [
+      { name: 'Emma (English US)', lang: 'en-US', share: '40%', count: 'Live Ready', color: 'bg-indigo-500' },
+      { name: 'Kavya (Hindi)', lang: 'hi-IN', share: '30%', count: 'Live Ready', color: 'bg-purple-500' },
+      { name: 'Mateo (Spanish)', lang: 'es-ES', share: '20%', count: 'Live Ready', color: 'bg-emerald-500' },
+      { name: 'Camille (French)', lang: 'fr-FR', share: '10%', count: 'Live Ready', color: 'bg-rose-500' },
+    ];
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -47,10 +83,10 @@ export const AdminAnalyticsTab: React.FC = () => {
               ₹{metrics.totalRevenueInr.toLocaleString()}
             </span>
             <span className="text-[11px] font-bold text-emerald-500 flex items-center">
-              <ArrowUpRight className="w-3 h-3" /> +24%
+              {metrics.paidOrdersCount} Paid Orders
             </span>
           </div>
-          <p className="text-[11px] text-slate-400">Razorpay UPI, Cards & Netbanking</p>
+          <p className="text-[11px] text-slate-400">Live Razorpay Gateway Orders</p>
         </div>
 
         {/* Monthly Recurring Revenue */}

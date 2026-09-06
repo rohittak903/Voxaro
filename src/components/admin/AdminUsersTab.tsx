@@ -11,7 +11,8 @@ import {
   Plus, 
   Ban, 
   Sparkles,
-  Zap
+  Zap,
+  Trash2
 } from 'lucide-react';
 
 export const AdminUsersTab: React.FC = () => {
@@ -41,6 +42,14 @@ export const AdminUsersTab: React.FC = () => {
     const updated = AdminService.toggleUserStatus(userId);
     setUsers(updated);
     showToast(currentStatus === 'active' ? 'Account suspended' : 'Account re-activated', 'info');
+  };
+
+  const handleDeleteUser = (userId: string, userName: string) => {
+    if (confirm(`Are you sure you want to remove user "${userName}" from the registry?`)) {
+      const updated = AdminService.deleteUser(userId);
+      setUsers(updated);
+      showToast(`User ${userName} removed`, 'info');
+    }
   };
 
   const handleAddBonusCredits = (e: React.FormEvent) => {
@@ -211,6 +220,16 @@ export const AdminUsersTab: React.FC = () => {
                           >
                             <Ban className="w-4 h-4" />
                           </button>
+
+                          {u.role !== 'super_admin' && (
+                            <button
+                              onClick={() => handleDeleteUser(u.id, u.name)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+                              title="Delete User from Registry"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
 

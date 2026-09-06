@@ -87,7 +87,20 @@ export const AdminTransactionsTab: React.FC = () => {
             </thead>
 
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-sans">
-              {filtered.map((t) => (
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-12 text-slate-400">
+                    <div className="max-w-md mx-auto space-y-2">
+                      <CreditCard className="w-8 h-8 text-slate-500 mx-auto opacity-50" />
+                      <p className="font-bold text-slate-700 dark:text-slate-300">No transactions recorded yet</p>
+                      <p className="text-[11px] text-slate-500">
+                        Real-time customer payments via Razorpay checkout will automatically appear here as soon as orders are placed.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((t) => (
                 <tr key={t.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
                   
                   {/* Customer */}
@@ -177,7 +190,8 @@ export const AdminTransactionsTab: React.FC = () => {
                   </td>
 
                 </tr>
-              ))}
+              )))
+            }
             </tbody>
           </table>
         </div>
