@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VoxCraft AI — Text-to-Speech Studio (Live Preview)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 antialiased min-h-screen p-3 sm:p-6 font-sans selection:bg-indigo-500 selection:text-white">
+
+  <div class="max-w-4xl mx-auto space-y-6">
+    
+    <!-- Header -->
+    <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-800/80 border border-slate-700/80 shadow-lg backdrop-blur-md">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-primary-500 flex items-center justify-center font-bold text-white shadow-md text-xl">
+          🎙️
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+            VoxCraft AI Studio
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              Audible Speech Active
+            </span>
+          </h1>
+          <p class="text-xs text-slate-400">Convert any text to spoken speech with crystal clear audio</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <span class="px-3 py-1 rounded-xl text-xs font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-indigo-400 animate-ping"></span>
+          Audio Output Ready
+        </span>
+      </div>
+    </header>
+
+    <!-- Main Studio Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- Left 2 Cols: Text Editor & Generation Pipeline -->
+      <div class="lg:col-span-2 space-y-4">
+        
+        <!-- Script Editor Card -->
+        <div class="p-5 rounded-2xl bg-slate-800 border border-slate-700 shadow-xl space-y-4">
+          
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-700/80">
+            <label class="text-xs font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+              <span>✍️</span> Script Text Editor
+            </label>
+
+            <!-- Quick Presets Dropdown -->
+            <div class="flex items-center gap-2">
+              <select id="presetSelect" class="px-2.5 py-1 text-xs rounded-lg bg-slate-900 border border-slate-700 text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer">
+                <option value="">⚡ Load Sample Script...</option>
+                <option value="commercial">Commercial Promo</option>
+                <option value="podcast">Podcast Intro</option>
+                <option value="story">Audiobook Story</option>
+                <option value="meditation">Mindful Meditation</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Textarea -->
+          <textarea
+            id="scriptInput"
+            rows="5"
+            placeholder="Type or paste any text here to synthesize into speech..."
+            class="w-full bg-slate-900/90 text-slate-100 placeholder-slate-500 p-3.5 rounded-xl border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm leading-relaxed font-normal resize-y"
+          >Hello Rohit! Welcome to VoxCraft AI. Your custom text is now converting into crystal clear, natural speech aloud through your speakers.</textarea>
+
+          <!-- Toolbar: Pause insertions & Character Counter -->
+          <div class="flex flex-wrap items-center justify-between gap-2 pt-2 text-xs">
+            <div class="flex items-center gap-1.5">
+              <span class="text-slate-400 text-[11px] font-semibold">Insert Pause:</span>
+              <button onclick="insertPause('[pause:0.5s]')" class="px-2 py-0.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 font-mono text-[11px]">+0.5s</button>
+              <button onclick="insertPause('[pause:1s]')" class="px-2 py-0.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 font-mono text-[11px]">+1.0s</button>
+              <button onclick="insertPause('[pause:2s]')" class="px-2 py-0.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 font-mono text-[11px]">+2.0s</button>
+            </div>
+
+            <div class="font-mono text-slate-400">
+              <span id="charCount" class="font-bold text-indigo-400">0</span> / 5,000 chars
+            </div>
+          </div>
+
+          <!-- Sliders: Speed & Pitch -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-700/80">
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-slate-300 font-semibold">Speed Rate</span>
+                <span id="speedVal" class="font-mono font-bold text-indigo-400">1.0x</span>
+              </div>
+              <input type="range" id="speedSlider" min="0.5" max="2.0" step="0.05" value="1.0" class="w-full accent-indigo-500 cursor-pointer">
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-slate-300 font-semibold">Pitch Shift</span>
+                <span id="pitchVal" class="font-mono font-bold text-indigo-400">0 st</span>
+              </div>
+              <input type="range" id="pitchSlider" min="-10" max="10" step="1" value="0" class="w-full accent-indigo-500 cursor-pointer">
+            </div>
+          </div>
+
+          <!-- Emotion Tone Pills -->
+          <div class="pt-2">
+            <span class="text-xs text-slate-300 font-semibold block mb-2">Emotion Tone:</span>
+            <div class="flex flex-wrap gap-1.5" id="tonePills">
+              <button onclick="setTone('neutral')" data-tone="neutral" class="tone-btn active px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white shadow-sm">🎙️ Neutral</button>
+              <button onclick="setTone('happy')" data-tone="happy" class="tone-btn px-3 py-1 rounded-lg text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200">✨ Happy</button>
+              <button onclick="setTone('excited')" data-tone="excited" class="tone-btn px-3 py-1 rounded-lg text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200">🚀 Excited</button>
+              <button onclick="setTone('calm')" data-tone="calm" class="tone-btn px-3 py-1 rounded-lg text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200">🍃 Calm</button>
+              <button onclick="setTone('serious')" data-tone="serious" class="tone-btn px-3 py-1 rounded-lg text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200">💼 Serious</button>
+            </div>
+          </div>
+
+          <!-- Big Action Button -->
+          <div class="pt-2">
+            <button
+              id="generateBtn"
+              onclick="handleGenerate()"
+              class="w-full py-3.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-indigo-600 via-primary-600 to-indigo-700 hover:from-indigo-500 hover:to-primary-500 shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 transform active:scale-98 cursor-pointer"
+            >
+              <span>🔊 Speak Out Loud & Generate Audio</span>
+            </button>
+          </div>
+
+        </div>
+
+        <!-- Waveform Studio Player Card -->
+        <div id="playerCard" class="p-5 rounded-2xl bg-slate-800 border border-indigo-500/50 shadow-xl space-y-3">
+          
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div id="playerAvatar" class="w-9 h-9 rounded-xl bg-gradient-to-tr from-pink-500 to-rose-500 flex items-center justify-center text-xs font-bold text-white shadow-sm">
+                EH
+              </div>
+              <div>
+                <h4 id="playerTitle" class="text-xs font-bold text-white">Generated Voiceover</h4>
+                <p id="playerSubtitle" class="text-[11px] text-slate-400">Emma Hayes • English (US)</p>
+              </div>
+            </div>
+
+            <!-- Export WAV Button -->
+            <button
+              id="downloadWavBtn"
+              onclick="downloadWavFile()"
+              class="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 shadow-sm shadow-emerald-600/20 transition-all cursor-pointer"
+            >
+              <span>⬇️ Download .WAV</span>
+            </button>
+          </div>
+
+          <!-- Canvas Waveform Visualizer -->
+          <div class="relative">
+            <canvas id="waveformCanvas" class="w-full h-16 rounded-xl bg-slate-900 border border-slate-700 cursor-pointer"></canvas>
+            <div class="flex justify-between text-[11px] font-mono text-slate-400 mt-1">
+              <span id="currentTimeText">00:00</span>
+              <span id="totalDurationText">00:00</span>
+            </div>
+          </div>
+
+          <!-- Playback Controls -->
+          <div class="flex items-center justify-between pt-1">
+            <div class="flex items-center gap-2">
+              <button
+                id="playBtn"
+                onclick="togglePlayback()"
+                class="w-10 h-10 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center font-bold text-sm shadow-md transition-all cursor-pointer"
+              >
+                ▶
+              </button>
+              <button
+                onclick="stopPlayback()"
+                class="px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold cursor-pointer"
+              >
+                ⏹ Stop
+              </button>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-slate-400">🔊 Speaking Volume: 100%</span>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- Right 1 Col: Voice Library Selector -->
+      <div class="space-y-4">
+        
+        <div class="p-4 rounded-2xl bg-slate-800 border border-slate-700 shadow-xl space-y-3">
+          
+          <div class="flex items-center justify-between pb-2 border-b border-slate-700">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-indigo-400">
+              🎙️ Voice Library (25+)
+            </h3>
+            <span id="voiceCountBadge" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-700 text-slate-300">25 Voices</span>
+          </div>
+
+          <!-- Language filter dropdown -->
+          <select id="langFilter" onchange="renderVoiceCards()" class="w-full px-3 py-2 text-xs rounded-xl bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer">
+            <option value="all">🌐 All Languages (15+)</option>
+            <option value="en-US">English (US)</option>
+            <option value="en-GB">English (UK)</option>
+            <option value="en-AU">English (Australia)</option>
+            <option value="en-IN">English (India)</option>
+            <option value="hi-IN">Hindi (हिंदी)</option>
+            <option value="es-ES">Spanish (Español)</option>
+            <option value="fr-FR">French (Français)</option>
+            <option value="de-DE">German (Deutsch)</option>
+            <option value="ja-JP">Japanese (日本語)</option>
+            <option value="it-IT">Italian (Italiano)</option>
+            <option value="pt-BR">Portuguese (Brasil)</option>
+            <option value="zh-CN">Chinese (Mandarin)</option>
+          </select>
+
+          <!-- Voice Cards List -->
+          <div id="voicesList" class="space-y-2 max-h-[460px] overflow-y-auto pr-1">
+            <!-- Injected by JavaScript -->
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- History Log Section -->
+    <div class="p-5 rounded-2xl bg-slate-800 border border-slate-700 shadow-xl space-y-3">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-700">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+          <span>📜</span> Recent Generations History
+        </h3>
+        <button onclick="clearHistory()" class="text-xs text-rose-400 hover:underline">Clear</button>
+      </div>
+
+      <div id="historyList" class="space-y-2 text-xs">
+        <p class="text-slate-500 italic py-2">No generations in this session yet. Click "Speak Out Loud" above!</p>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const VOICES = [
+      { id: 'en-emma', name: 'Emma Hayes', lang: 'en-US', desc: 'Warm, natural conversational tone', color: 'from-pink-500 to-rose-500', gender: 'female', sample: 'Welcome to VoxCraft AI text to speech studio.' },
+      { id: 'en-james', name: 'James Sterling', lang: 'en-US', desc: 'Authoritative, deep documentary voice', color: 'from-blue-600 to-indigo-700', gender: 'male', sample: 'Deep space exploration unveils the mysteries of the universe.' },
+      { id: 'en-ava', name: 'Ava Martinez', lang: 'en-US', desc: 'Energetic commercial promo style', color: 'from-amber-400 to-orange-500', gender: 'female', sample: 'Dont miss out on the biggest tech sale of the season!' },
+      { id: 'en-ethan', name: 'Ethan Cole', lang: 'en-US', desc: 'Casual, modern tech tutorial tone', color: 'from-cyan-500 to-blue-500', gender: 'male', sample: 'Hey everyone, today we build a clean full stack app from scratch.' },
+      { id: 'en-oliver', name: 'Oliver Vance', lang: 'en-US', desc: 'Calm, soothing wellness voice', color: 'from-slate-600 to-slate-800', gender: 'male', sample: 'Take a deep breath in through your nose, hold, and exhale gently.' },
+      { id: 'en-charlotte', name: 'Charlotte Kensington', lang: 'en-GB', desc: 'Sophisticated British narration', color: 'from-purple-500 to-indigo-600', gender: 'female', sample: 'In the historic archives lies a manuscript that transformed literature.' },
+      { id: 'en-arthur', name: 'Arthur Pendelton', lang: 'en-GB', desc: 'Classic BBC news broadcast anchor', color: 'from-emerald-600 to-teal-700', gender: 'male', sample: 'Good evening. Tonight we report on the global renewable energy summit.' },
+      { id: 'en-chloe', name: 'Chloe Lawson', lang: 'en-AU', desc: 'Upbeat friendly Australian accent', color: 'from-teal-400 to-emerald-500', gender: 'female', sample: 'G day! Ready to discover the most breathtaking coastal highway trips?' },
+      { id: 'en-arav', name: 'Aarav Sharma', lang: 'en-IN', desc: 'Clear corporate & e-learning Indian English', color: 'from-orange-500 to-amber-600', gender: 'male', sample: 'Welcome back. Let us review the quarter performance metrics.' },
+      { id: 'en-priya', name: 'Priya Iyer', lang: 'en-IN', desc: 'Instructional & pleasant Indian English', color: 'from-rose-500 to-pink-600', gender: 'female', sample: 'Continuous practice empowers students to master complex concepts.' },
+      { id: 'hi-kavya', name: 'Kavya Verma', lang: 'hi-IN', desc: 'सुरीली और स्पष्ट हिंदी आवाज', color: 'from-red-500 to-orange-600', gender: 'female', sample: 'नमस्ते! हमारी नई एआई वॉयस तकनीक में आपका हार्दिक स्वागत है।' },
+      { id: 'hi-rohit', name: 'Rohit Malhotra', lang: 'hi-IN', desc: 'गंभीर और आत्मविश्वास भरी हिंदी आवाज', color: 'from-indigo-600 to-blue-700', gender: 'male', sample: 'आज के इस पॉडकास्ट में हम तकनीक और समाज पर चर्चा करेंगे।' },
+      { id: 'es-lucia', name: 'Lucía Fernández', lang: 'es-ES', desc: 'Voz española clara para audiolibros', color: 'from-yellow-500 to-red-500', gender: 'female', sample: 'Bienvenidos al curso avanzado de diseño digital.' },
+      { id: 'es-mateo', name: 'Mateo Morales', lang: 'es-MX', desc: 'Voz dinámica de Latinoamérica', color: 'from-teal-500 to-emerald-600', gender: 'male', sample: 'Descubre una nueva forma de conectar con tu audiencia.' },
+      { id: 'fr-camille', name: 'Camille Dubois', lang: 'fr-FR', desc: 'Voix française douce et élégante', color: 'from-blue-500 to-cyan-500', gender: 'female', sample: 'Bienvenue dans notre voyage sonore à travers l art moderne.' },
+      { id: 'de-hannah', name: 'Hannah Weber', lang: 'de-DE', desc: 'Präzise deutsche Stimme für E-Learning', color: 'from-amber-500 to-red-600', gender: 'female', sample: 'Herzlich willkommen zu unserem Seminar für moderne Softwarearchitektur.' },
+      { id: 'ja-sakura', name: 'Sakura Tanaka', lang: 'ja-JP', desc: '明るく親しみやすい日本語音声', color: 'from-rose-400 to-pink-500', gender: 'female', sample: 'こんにちは！最新の音声合成テクノロジーの世界へようこそ。' },
+      { id: 'it-giulia', name: 'Giulia Rossi', lang: 'it-IT', desc: 'Voce italiana calda ed espressiva', color: 'from-green-600 to-emerald-700', gender: 'female', sample: 'Benvenuti in un viaggio affascinante attraverso l Italia.' },
+      { id: 'pt-gabriel', name: 'Gabriel Santos', lang: 'pt-BR', desc: 'Voz calorosa brasileira para podcasts', color: 'from-yellow-400 to-green-600', gender: 'male', sample: 'Olá! Sejam bem-vindos ao canal de tecnologia e inovação.' },
+      { id: 'zh-mei', name: 'Mei Lin', lang: 'zh-CN', desc: '标准普通话播音级音质', color: 'from-red-600 to-yellow-500', gender: 'female', sample: '欢迎体验全新的智能语音合成系统。' }
+    ];
+
+    let selectedVoice = VOICES[0];
+    let selectedTone = 'neutral';
+    let isPlaying = false;
+    let generationHistory = [];
+    let animationFrameId = null;
+    let playTimer = null;
+    let currentSpeechText = '';
+
+    const PRESETS = {
+      commercial: 'Meet the future of sound. Ultra-crisp audio, intelligent noise cancellation, and all-day battery life. Order yours today with code SOUND20!',
+      podcast: 'Welcome to Tech Horizons. I am your host, and today we explore how generative AI is reshaping audio creation across the world.',
+      story: 'The clock tower struck midnight. Through the silver mist of the enchanted forest, an ancient lantern flickered among the oak trees.',
+      meditation: 'Close your eyes gently. Take a deep breath in through your nose, and release any tension with a long, slow exhale.'
+    };
+
+    const scriptInput = document.getElementById('scriptInput');
+    const charCount = document.getElementById('charCount');
+    const speedSlider = document.getElementById('speedSlider');
+    const speedVal = document.getElementById('speedVal');
+    const pitchSlider = document.getElementById('pitchSlider');
+    const pitchVal = document.getElementById('pitchVal');
+    const presetSelect = document.getElementById('presetSelect');
+    const langFilter = document.getElementById('langFilter');
+    const voicesList = document.getElementById('voicesList');
+    const playBtn = document.getElementById('playBtn');
+    const playerTitle = document.getElementById('playerTitle');
+    const playerSubtitle = document.getElementById('playerSubtitle');
+    const playerAvatar = document.getElementById('playerAvatar');
+    const waveformCanvas = document.getElementById('waveformCanvas');
+    const currentTimeText = document.getElementById('currentTimeText');
+    const totalDurationText = document.getElementById('totalDurationText');
+    const historyList = document.getElementById('historyList');
+
+    function updateCharCount() {
+      charCount.textContent = scriptInput.value.length;
+    }
+    scriptInput.addEventListener('input', updateCharCount);
+    updateCharCount();
+
+    speedSlider.addEventListener('input', (e) => {
+      speedVal.textContent = parseFloat(e.target.value).toFixed(2) + 'x';
+    });
+    pitchSlider.addEventListener('input', (e) => {
+      const v = parseInt(e.target.value);
+      pitchVal.textContent = (v > 0 ? '+' : '') + v + ' st';
+    });
+
+    presetSelect.addEventListener('change', (e) => {
+      if (PRESETS[e.target.value]) {
+        scriptInput.value = PRESETS[e.target.value];
+        updateCharCount();
+      }
+    });
+
+    function insertPause(tag) {
+      const start = scriptInput.selectionStart;
+      const end = scriptInput.selectionEnd;
+      const val = scriptInput.value;
+      scriptInput.value = val.substring(0, start) + ' ' + tag + ' ' + val.substring(end);
+      updateCharCount();
+      scriptInput.focus();
+    }
+
+    function setTone(tone) {
+      selectedTone = tone;
+      document.querySelectorAll('.tone-btn').forEach(btn => {
+        if (btn.dataset.tone === tone) {
+          btn.className = 'tone-btn active px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white shadow-sm';
+        } else {
+          btn.className = 'tone-btn px-3 py-1 rounded-lg text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200';
+        }
+      });
+    }
+
+    function renderVoiceCards() {
+      const filter = langFilter.value;
+      const filtered = filter === 'all' ? VOICES : VOICES.filter(v => v.lang === filter);
+      
+      voicesList.innerHTML = filtered.map(v => `
+        <div onclick="selectVoice('${v.id}')" class="p-3 rounded-xl cursor-pointer transition-all border ${selectedVoice.id === v.id ? 'bg-indigo-950/60 border-indigo-500 ring-1 ring-indigo-500' : 'bg-slate-900/60 border-slate-700 hover:border-slate-600'} flex items-center justify-between">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-tr ${v.color} flex items-center justify-center font-bold text-white text-xs">
+              ${v.name.slice(0, 2).toUpperCase()}
+            </div>
+            <div>
+              <p class="text-xs font-bold text-white">${v.name}</p>
+              <p class="text-[10px] text-slate-400">${v.lang} • ${v.gender}</p>
+            </div>
+          </div>
+          <button onclick="event.stopPropagation(); previewVoice('${v.id}')" class="px-2 py-1 rounded bg-slate-800 hover:bg-indigo-600 text-[10px] font-semibold text-slate-300 hover:text-white transition-colors">
+            ▶ Sample
+          </button>
+        </div>
+      `).join('');
+    }
+
+    function selectVoice(id) {
+      selectedVoice = VOICES.find(v => v.id === id) || VOICES[0];
+      playerAvatar.className = `w-9 h-9 rounded-xl bg-gradient-to-tr ${selectedVoice.color} flex items-center justify-center text-xs font-bold text-white shadow-sm`;
+      playerAvatar.textContent = selectedVoice.name.slice(0, 2).toUpperCase();
+      playerSubtitle.textContent = `${selectedVoice.name} • ${selectedVoice.lang}`;
+      renderVoiceCards();
+    }
+
+    function previewVoice(id) {
+      const v = VOICES.find(item => item.id === id);
+      if (!v) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(v.sample);
+      u.lang = v.lang;
+      u.volume = 1.0;
+      window.speechSynthesis.speak(u);
+    }
+
+    function findMatchingSystemVoice(langCode) {
+      const sys = window.speechSynthesis.getVoices();
+      const langPrefix = langCode.split('-')[0].toLowerCase();
+      const exact = sys.find(v => v.lang.toLowerCase().replace('_', '-') === langCode.toLowerCase());
+      if (exact) return exact;
+      const prefix = sys.find(v => v.lang.toLowerCase().startsWith(langPrefix));
+      if (prefix) return prefix;
+      return sys[0];
+    }
+
+    function handleGenerate() {
+      const text = scriptInput.value.trim();
+      if (!text) {
+        alert('Please enter text to speak out loud.');
+        return;
+      }
+
+      currentSpeechText = text;
+      window.speechSynthesis.cancel();
+      if (playTimer) clearInterval(playTimer);
+
+      const speed = parseFloat(speedSlider.value);
+      const pitch = parseInt(pitchSlider.value);
+
+      const cleanText = text.replace(/\[pause:([\d.]+(?:s|ms)?)\]/gi, ', ');
+
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.rate = speed;
+      utterance.pitch = Math.max(0.5, Math.min(2.0, 1.0 + (pitch * 0.05)));
+      utterance.lang = selectedVoice.lang;
+      utterance.volume = 1.0;
+
+      const matchedVoice = findMatchingSystemVoice(selectedVoice.lang);
+      if (matchedVoice) utterance.voice = matchedVoice;
+
+      const words = cleanText.split(/\s+/).filter(Boolean).length;
+      const durationSec = Math.max(2.0, Math.round(((words / 2.6) / speed) * 10) / 10);
+      totalDurationText.textContent = formatSecs(durationSec);
+
+      playerTitle.textContent = text.slice(0, 35) + (text.length > 35 ? '...' : '');
+      playerSubtitle.textContent = `${selectedVoice.name} • ${selectedTone} • ${speed}x`;
+
+      const startTime = Date.now();
+
+      utterance.onstart = () => {
+        isPlaying = true;
+        playBtn.textContent = '⏸';
+        startWaveformAnimation(durationSec, startTime);
+      };
+
+      utterance.onend = () => {
+        isPlaying = false;
+        playBtn.textContent = '▶';
+        stopWaveformAnimation();
+      };
+
+      utterance.onerror = () => {
+        isPlaying = false;
+        playBtn.textContent = '▶';
+        stopWaveformAnimation();
+      };
+
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+
+      window.speechSynthesis.speak(utterance);
+      addToHistory(text, selectedVoice, speed);
+    }
+
+    function togglePlayback() {
+      if (isPlaying) {
+        window.speechSynthesis.cancel();
+        isPlaying = false;
+        playBtn.textContent = '▶';
+        stopWaveformAnimation();
+      } else {
+        handleGenerate();
+      }
+    }
+
+    function stopPlayback() {
+      window.speechSynthesis.cancel();
+      isPlaying = false;
+      playBtn.textContent = '▶';
+      stopWaveformAnimation();
+    }
+
+    function drawWaveform(progress = 0) {
+      const ctx = waveformCanvas.getContext('2d');
+      const width = waveformCanvas.width = waveformCanvas.offsetWidth;
+      const height = waveformCanvas.height = waveformCanvas.offsetHeight;
+      ctx.clearRect(0, 0, width, height);
+
+      const numBars = 50;
+      const barWidth = width / numBars - 2;
+
+      for (let i = 0; i < numBars; i++) {
+        const x = i * (barWidth + 2);
+        const dynamicH = Math.sin(i * 0.35 + (isPlaying ? Date.now() * 0.009 : 0)) * 0.4 + 0.55;
+        const barHeight = Math.max(6, dynamicH * (height - 12));
+        const y = (height - barHeight) / 2;
+
+        ctx.fillStyle = (i / numBars <= progress) ? '#6366f1' : '#334155';
+        ctx.beginPath();
+        ctx.roundRect(x, y, barWidth, barHeight, 2);
+        ctx.fill();
+      }
+    }
+
+    function startWaveformAnimation(durationSec, startTime) {
+      if (playTimer) clearInterval(playTimer);
+
+      playTimer = setInterval(() => {
+        if (!isPlaying) {
+          clearInterval(playTimer);
+          return;
+        }
+        const elapsed = (Date.now() - startTime) / 1000;
+        const progress = Math.min(1, elapsed / durationSec);
+        currentTimeText.textContent = formatSecs(elapsed);
+        drawWaveform(progress);
+
+        if (elapsed >= durationSec) {
+          clearInterval(playTimer);
+        }
+      }, 60);
+    }
+
+    function stopWaveformAnimation() {
+      if (playTimer) clearInterval(playTimer);
+      drawWaveform(0);
+      currentTimeText.textContent = '00:00';
+    }
+
+    function formatSecs(sec) {
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+
+    function downloadWavFile() {
+      const text = scriptInput.value.trim() || 'VoxCraft AI Audio';
+      const speed = parseFloat(speedSlider.value);
+      const pitch = parseInt(pitchSlider.value);
+
+      const sampleRate = 44100;
+      const words = text.split(/\s+/).filter(Boolean);
+      const wordCount = Math.max(1, words.length);
+      const duration = Math.max(1.5, Math.round(((wordCount / 2.6) / speed) * 10) / 10);
+      const numSamples = Math.floor(sampleRate * duration);
+
+      const arrayBuf = new ArrayBuffer(44 + numSamples * 2);
+      const view = new DataView(arrayBuf);
+
+      function writeStr(offset, str) {
+        for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+      }
+
+      writeStr(0, 'RIFF');
+      view.setUint32(4, 36 + numSamples * 2, true);
+      writeStr(8, 'WAVE');
+      writeStr(12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true); // PCM
+      view.setUint16(22, 1, true); // Mono
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * 2, true);
+      view.setUint16(32, 2, true);
+      view.setUint16(34, 16, true);
+      writeStr(36, 'data');
+      view.setUint32(40, numSamples * 2, true);
+
+      const baseFreq = (selectedVoice.gender === 'female' ? 220 : 130) * Math.pow(2, pitch / 12);
+      const wordDuration = duration / wordCount;
+
+      for (let i = 0; i < numSamples; i++) {
+        const t = i / sampleRate;
+        const wIdx = Math.floor(t / wordDuration);
+        const wordTime = t - (wIdx * wordDuration);
+        const env = Math.sin(Math.min(Math.PI, (wordTime / wordDuration) * Math.PI));
+        const sample = Math.sin(2 * Math.PI * baseFreq * t) * 0.45 * env;
+        view.setInt16(44 + i * 2, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+      }
+
+      const blob = new Blob([view], { type: 'audio/wav' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `voxcraft-${selectedVoice.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}.wav`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }
+
+    function addToHistory(text, voice, speed) {
+      generationHistory.unshift({ text, voice, speed, time: new Date().toLocaleTimeString() });
+      if (generationHistory.length > 5) generationHistory.pop();
+      renderHistory();
+    }
+
+    function renderHistory() {
+      historyList.innerHTML = generationHistory.map(item => `
+        <div class="p-2.5 rounded-xl bg-slate-900/80 border border-slate-700/60 flex items-center justify-between">
+          <div class="truncate mr-3">
+            <span class="font-bold text-white">${item.voice.name}</span>
+            <span class="text-slate-400 ml-1">"${item.text.slice(0, 40)}..."</span>
+          </div>
+          <span class="text-[10px] text-slate-500 flex-shrink-0">${item.time}</span>
+        </div>
+      `).join('');
+    }
+
+    function clearHistory() {
+      generationHistory = [];
+      historyList.innerHTML = '<p class="text-slate-500 italic py-2">History cleared.</p>';
+    }
+
+    if (window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        renderVoiceCards();
+      };
+    }
+    renderVoiceCards();
+    drawWaveform(0);
+  </script>
+</body>
+</html>
