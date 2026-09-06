@@ -39,12 +39,12 @@ export const HistoryCard: React.FC<HistoryCardProps> = ({ job }) => {
 
   const handleDownload = () => {
     if (job.audioBlob) {
-      downloadAudioFile(job.audioBlob, `voxcraft-${job.voice.name}-${job.id}.${job.format}`);
+      downloadAudioFile(job.audioBlob, `voxaro-${job.voice.name.toLowerCase().replace(/\s+/g, '-')}-${job.id}.${job.format}`);
       showToast('Download started', 'success');
     } else if (job.audioUrl) {
       const link = document.createElement('a');
       link.href = job.audioUrl;
-      link.download = `voxcraft-${job.voice.name}-${job.id}.${job.format}`;
+      link.download = `voxaro-${job.voice.name.toLowerCase().replace(/\s+/g, '-')}-${job.id}.${job.format}`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

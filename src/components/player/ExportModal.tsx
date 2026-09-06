@@ -22,7 +22,7 @@ export const ExportModal: React.FC = () => {
     setIsExporting(true);
 
     try {
-      const filename = `voxcraft-${currentJob.voice.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}.${selectedFormat}`;
+      const filename = `voxaro-${currentJob.voice.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}.${selectedFormat}`;
       
       if (currentJob.audioBlob) {
         downloadAudioFile(currentJob.audioBlob, filename);

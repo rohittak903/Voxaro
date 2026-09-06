@@ -2,6 +2,7 @@
 
 /**
  * Converts an AudioBuffer into a valid, standard WAV file Blob (16-bit PCM)
+ * with Master Peak Normalization so exported audio is ALWAYS loud, clear, and perfectly audible.
  */
 export function audioBufferToWavBlob(buffer: AudioBuffer): Blob {
   const numOfChannels = buffer.numberOfChannels;
@@ -22,18 +23,31 @@ export function audioBufferToWavBlob(buffer: AudioBuffer): Blob {
     interleaved = buffer.getChannelData(0);
   }
 
+  // 1. Calculate peak amplitude across all samples for master normalization
+  let maxPeak = 0;
+  for (let i = 0; i < interleaved.length; i++) {
+    const abs = Math.abs(interleaved[i]);
+    if (abs > maxPeak) {
+      maxPeak = abs;
+    }
+  }
+
+  // Target 95% full-scale (-0.5 dBFS) for crystal-clear, loud, non-clipping audio
+  const targetPeak = 0.95;
+  const normFactor = maxPeak > 0.0001 ? targetPeak / maxPeak : 1.0;
+
   const dataLength = interleaved.length * (bitDepth / 8);
   const headerLength = 44;
   const totalLength = headerLength + dataLength;
   const arrayBuffer = new ArrayBuffer(totalLength);
   const view = new DataView(arrayBuffer);
 
-  // RIFF Chunk
+  // RIFF Chunk Descriptor
   writeString(view, 0, 'RIFF');
   view.setUint32(4, totalLength - 8, true);
   writeString(view, 8, 'WAVE');
 
-  // fmt SubChunk
+  // fmt Sub-Chunk
   writeString(view, 12, 'fmt ');
   view.setUint32(16, 16, true); // SubChunk1Size (16 for PCM)
   view.setUint16(20, format, true); // AudioFormat
@@ -43,16 +57,17 @@ export function audioBufferToWavBlob(buffer: AudioBuffer): Blob {
   view.setUint16(32, numOfChannels * (bitDepth / 8), true); // BlockAlign
   view.setUint16(34, bitDepth, true); // BitsPerSample
 
-  // data SubChunk
+  // data Sub-Chunk
   writeString(view, 36, 'data');
   view.setUint32(40, dataLength, true);
 
-  // Write PCM audio samples with volume normalization
+  // Write normalized 16-bit PCM audio samples
   let offset = 44;
   for (let i = 0; i < interleaved.length; i++) {
-    const s = Math.max(-1, Math.min(1, interleaved[i]));
-    const val = s < 0 ? s * 0x8000 : s * 0x7FFF;
-    view.setInt16(offset, val, true);
+    const rawSample = interleaved[i] * normFactor;
+    const clamped = Math.max(-1, Math.min(1, rawSample));
+    const intSample = clamped < 0 ? Math.round(clamped * 32768) : Math.round(clamped * 32767);
+    view.setInt16(offset, intSample, true);
     offset += 2;
   }
 
