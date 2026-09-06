@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { useUser } from '../../context/UserContext';
+import React, { useState, useEffect } from 'react';
+import { StorageService } from '../../services/storage';
+import { AdminService } from '../../services/adminService';
 import { 
   X, 
   User, 
@@ -9,8 +10,34 @@ import {
   ChevronRight, 
   Mail, 
   Lock,
-  Globe
+  Globe,
+  UserPlus,
+  Trash2
 } from 'lucide-react';
+
+export interface SavedAccount {
+  email: string;
+  name: string;
+  avatarUrl?: string;
+  status?: string;
+}
+
+const STORAGE_SAVED_ACCOUNTS_KEY = 'voxaro_saved_google_accounts';
+
+const DEFAULT_ACCOUNTS: SavedAccount[] = [
+  {
+    email: 'rohittak903@gmail.com',
+    name: 'Rohit Tak',
+    avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=RohitTak',
+    status: 'Signed out'
+  },
+  {
+    email: 'creator.studio@gmail.com',
+    name: 'Studio Creator',
+    avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=StudioCreator',
+    status: 'Signed out'
+  }
+];
 
 interface GoogleOAuthModalProps {
   isOpen: boolean;
@@ -22,13 +49,76 @@ export const GoogleOAuthModal: React.FC<GoogleOAuthModalProps> = ({ isOpen, onCl
   const [step, setStep] = useState<'choose_account' | 'custom_account' | 'consent'>('choose_account');
   const [customEmail, setCustomEmail] = useState('');
   const [customName, setCustomName] = useState('');
-  const [customPassword, setCustomPassword] = useState('');
-  const [selectedUser, setSelectedUser] = useState<{ email: string; name: string; avatarUrl?: string } | null>(null);
+  const [selectedUser, setSelectedUser] = useState<SavedAccount | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [accounts, setAccounts] = useState<SavedAccount[]>([]);
+
+  // Load saved accounts from storage + real registered accounts
+  useEffect(() => {
+    if (!isOpen) return;
+
+    try {
+      const stored = localStorage.getItem(STORAGE_SAVED_ACCOUNTS_KEY);
+      let loadedAccounts: SavedAccount[] = stored ? JSON.parse(stored) : [];
+
+      // Merge current authUser / profile if exists
+      const currentAuth = StorageService.loadAuthUser();
+      if (currentAuth && currentAuth.email && !loadedAccounts.some(a => a.email.toLowerCase() === currentAuth.email.toLowerCase())) {
+        loadedAccounts.unshift({
+          email: currentAuth.email,
+          name: currentAuth.name || currentAuth.email.split('@')[0],
+          avatarUrl: currentAuth.avatarUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(currentAuth.name)}`,
+          status: 'Active'
+        });
+      }
+
+      // Merge real registered users from Admin registry
+      try {
+        const adminUsers = AdminService.getUsers();
+        adminUsers.forEach(u => {
+          if (u.email && u.email !== 'admin@voxaro.ai' && !loadedAccounts.some(a => a.email.toLowerCase() === u.email.toLowerCase())) {
+            loadedAccounts.push({
+              email: u.email,
+              name: u.name || u.email.split('@')[0],
+              avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(u.name)}`,
+              status: 'Signed out'
+            });
+          }
+        });
+      } catch {}
+
+      // If still empty, supply default recognizable accounts
+      if (loadedAccounts.length === 0) {
+        loadedAccounts = DEFAULT_ACCOUNTS;
+      }
+
+      setAccounts(loadedAccounts);
+      localStorage.setItem(STORAGE_SAVED_ACCOUNTS_KEY, JSON.stringify(loadedAccounts));
+    } catch {
+      setAccounts(DEFAULT_ACCOUNTS);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleSelectAccount = (acc: { email: string; name: string; avatarUrl?: string }) => {
+  const saveAccountToHistory = (newAcc: SavedAccount) => {
+    try {
+      const updated = [newAcc, ...accounts.filter(a => a.email.toLowerCase() !== newAcc.email.toLowerCase())];
+      setAccounts(updated);
+      localStorage.setItem(STORAGE_SAVED_ACCOUNTS_KEY, JSON.stringify(updated));
+    } catch {}
+  };
+
+  const removeAccount = (e: React.MouseEvent, email: string) => {
+    e.stopPropagation();
+    const updated = accounts.filter(a => a.email.toLowerCase() !== email.toLowerCase());
+    setAccounts(updated);
+    try {
+      localStorage.setItem(STORAGE_SAVED_ACCOUNTS_KEY, JSON.stringify(updated));
+    } catch {}
+  };
+
+  const handleSelectAccount = (acc: SavedAccount) => {
     setSelectedUser(acc);
     setStep('consent');
   };
@@ -37,11 +127,14 @@ export const GoogleOAuthModal: React.FC<GoogleOAuthModalProps> = ({ isOpen, onCl
     e.preventDefault();
     if (!customEmail || !customEmail.includes('@')) return;
     const derivedName = customName.trim() || customEmail.split('@')[0];
-    const acc = {
+    const acc: SavedAccount = {
       email: customEmail.trim(),
       name: derivedName,
-      avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(derivedName)}&background=0D8ABC&color=fff&size=128`
+      avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(derivedName)}`,
+      status: 'Active'
     };
+
+    saveAccountToHistory(acc);
     setSelectedUser(acc);
     setStep('consent');
   };
@@ -50,6 +143,7 @@ export const GoogleOAuthModal: React.FC<GoogleOAuthModalProps> = ({ isOpen, onCl
     if (!selectedUser) return;
     setIsProcessing(true);
     setTimeout(() => {
+      saveAccountToHistory(selectedUser);
       onSuccess(selectedUser);
       setIsProcessing(false);
       onClose();
@@ -96,7 +190,7 @@ export const GoogleOAuthModal: React.FC<GoogleOAuthModalProps> = ({ isOpen, onCl
 
           <button
             onClick={handleResetAndClose}
-            className="p-1.5 rounded-full hover:bg-[#28292a] text-[#C4C7C5] transition-colors"
+            className="p-1.5 rounded-full hover:bg-[#28292a] text-[#C4C7C5] transition-colors cursor-pointer"
             title="Close"
           >
             <X className="w-4 h-4" />
@@ -106,7 +200,7 @@ export const GoogleOAuthModal: React.FC<GoogleOAuthModalProps> = ({ isOpen, onCl
         {/* Dynamic Modal Content based on Step */}
         <div className="p-6 sm:p-8">
           
-          {/* STEP 1: Choose an Account */}
+          {/* STEP 1: Choose an Account (Shows Existing Accounts List) */}
           {step === 'choose_account' && (
             <div className="space-y-6 animate-fadeIn">
               <div className="flex items-center gap-3">
@@ -121,26 +215,75 @@ export const GoogleOAuthModal: React.FC<GoogleOAuthModalProps> = ({ isOpen, onCl
                 </div>
               </div>
 
-              {/* Accounts list */}
+              {/* Accounts list container */}
               <div className="border border-[#303030] rounded-2xl overflow-hidden divide-y divide-[#303030]">
                 
-                {/* Enter Custom Real Account */}
+                {/* Render Existing Accounts */}
+                {accounts.map((acc, index) => {
+                  const initial = (acc.name || acc.email)[0].toUpperCase();
+                  const colors = ['bg-[#0B57D0]', 'bg-[#7C3AED]', 'bg-[#059669]', 'bg-[#D97706]', 'bg-[#DC2626]'];
+                  const bgColor = colors[index % colors.length];
+
+                  return (
+                    <div
+                      key={acc.email}
+                      onClick={() => handleSelectAccount(acc)}
+                      className="w-full p-3.5 sm:p-4 flex items-center justify-between hover:bg-[#1E1F20] transition-colors text-left group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3.5 min-w-0 flex-1 mr-2">
+                        {/* Avatar */}
+                        {acc.avatarUrl ? (
+                          <img
+                            src={acc.avatarUrl}
+                            alt={acc.name}
+                            className="w-10 h-10 rounded-full object-cover border border-[#3C4043] shrink-0"
+                          />
+                        ) : (
+                          <div className={`w-10 h-10 rounded-full ${bgColor} flex items-center justify-center text-white font-bold text-sm shrink-0`}>
+                            {initial}
+                          </div>
+                        )}
+
+                        {/* Account Name & Email */}
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-medium text-white truncate group-hover:text-[#A8C7FA] transition-colors">
+                            {acc.name}
+                          </h4>
+                          <p className="text-xs text-[#8E918F] truncate">
+                            {acc.email}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Right indicator & delete option */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-[#8E918F] hidden sm:inline">
+                          {acc.status || 'Signed out'}
+                        </span>
+                        <ChevronRight className="w-4 h-4 text-[#8E918F] group-hover:text-white group-hover:translate-x-0.5 transition-all" />
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Option to Add / Use Another Google Account */}
                 <button
                   type="button"
                   onClick={() => setStep('custom_account')}
-                  className="w-full p-4 flex items-center gap-3.5 hover:bg-[#1E1F20] transition-colors text-left group cursor-pointer"
+                  className="w-full p-3.5 sm:p-4 flex items-center gap-3.5 hover:bg-[#1E1F20] transition-colors text-left group cursor-pointer"
                 >
-                  <div className="w-10 h-10 rounded-full bg-[#28292a] border border-[#3C4043] flex items-center justify-center text-[#C4C7C5] group-hover:text-white transition-colors">
-                    <User className="w-5 h-5" />
+                  <div className="w-10 h-10 rounded-full bg-[#28292a] border border-[#3C4043] flex items-center justify-center text-[#C4C7C5] group-hover:text-white group-hover:border-[#A8C7FA] transition-colors shrink-0">
+                    <UserPlus className="w-5 h-5" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-white flex items-center justify-between">
-                      <span>Use your Google Account</span>
+                      <span className="group-hover:text-[#A8C7FA] transition-colors">Use another account</span>
                       <ChevronRight className="w-4 h-4 text-[#8E918F] group-hover:text-white group-hover:translate-x-0.5 transition-all" />
                     </div>
-                    <span className="text-xs text-[#8E918F]">Sign in with your email or phone</span>
+                    <span className="text-xs text-[#8E918F]">Sign in with a different email or phone</span>
                   </div>
                 </button>
+
               </div>
 
               {/* Policy note */}
@@ -167,7 +310,7 @@ export const GoogleOAuthModal: React.FC<GoogleOAuthModalProps> = ({ isOpen, onCl
                   <input
                     type="email"
                     required
-                    placeholder="e.g. name@gmail.com"
+                    placeholder="e.g. yourname@gmail.com"
                     value={customEmail}
                     onChange={(e) => setCustomEmail(e.target.value)}
                     className="w-full px-4 py-3 rounded-xl bg-[#1E1F20] border border-[#444746] text-white placeholder-[#8E918F] focus:outline-none focus:border-[#A8C7FA] text-sm"
@@ -175,10 +318,10 @@ export const GoogleOAuthModal: React.FC<GoogleOAuthModalProps> = ({ isOpen, onCl
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-[#C4C7C5]">Display Name (Optional)</label>
+                  <label className="text-xs font-medium text-[#C4C7C5]">Full Name (Optional)</label>
                   <input
                     type="text"
-                    placeholder="Your Full Name"
+                    placeholder="e.g. Jane Doe"
                     value={customName}
                     onChange={(e) => setCustomName(e.target.value)}
                     className="w-full px-4 py-3 rounded-xl bg-[#1E1F20] border border-[#444746] text-white placeholder-[#8E918F] focus:outline-none focus:border-[#A8C7FA] text-sm"
@@ -190,9 +333,9 @@ export const GoogleOAuthModal: React.FC<GoogleOAuthModalProps> = ({ isOpen, onCl
                 <button
                   type="button"
                   onClick={() => setStep('choose_account')}
-                  className="text-xs font-medium text-[#A8C7FA] hover:underline"
+                  className="text-xs font-medium text-[#A8C7FA] hover:underline cursor-pointer"
                 >
-                  Back
+                  Back to accounts
                 </button>
 
                 <button
@@ -205,7 +348,7 @@ export const GoogleOAuthModal: React.FC<GoogleOAuthModalProps> = ({ isOpen, onCl
             </form>
           )}
 
-          {/* STEP 2: Google Permissions Consent Screen (Matching Screenshot 2) */}
+          {/* STEP 2: Google Permissions Consent Screen */}
           {step === 'consent' && selectedUser && (
             <div className="space-y-6 animate-fadeIn">
               
@@ -268,7 +411,7 @@ export const GoogleOAuthModal: React.FC<GoogleOAuthModalProps> = ({ isOpen, onCl
                 <button
                   type="button"
                   onClick={() => setStep('choose_account')}
-                  className="px-5 py-2.5 rounded-full text-xs font-semibold text-[#A8C7FA] hover:bg-[#28292a] transition-colors"
+                  className="px-5 py-2.5 rounded-full text-xs font-semibold text-[#A8C7FA] hover:bg-[#28292a] transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
