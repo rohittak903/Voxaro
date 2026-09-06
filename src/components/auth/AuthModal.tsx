@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useUser } from '../../context/UserContext';
+import { useGoogleLogin } from '@react-oauth/google';
 import { GoogleOAuthModal } from './GoogleOAuthModal';
 import { 
   X, 
@@ -27,6 +28,42 @@ export const AuthModal: React.FC = () => {
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
 
+  const handleGoogleSuccess = (googleUser: { email: string; name: string; avatarUrl?: string }) => {
+    login(googleUser.email, googleUser.name, 'google', googleUser.avatarUrl);
+    setShowAuthModal(false);
+    showToast(`Signed in as ${googleUser.name} (${googleUser.email})`, 'success');
+  };
+
+  const triggerGoogleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      try {
+        setIsLoading(true);
+        const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+        });
+        const profile = await res.json();
+        if (profile && profile.email) {
+          handleGoogleSuccess({
+            email: profile.email,
+            name: profile.name || profile.given_name || profile.email.split('@')[0],
+            avatarUrl: profile.picture,
+          });
+        } else {
+          setShowGoogleModal(true);
+        }
+      } catch (err) {
+        console.error('Failed to fetch Google profile:', err);
+        setShowGoogleModal(true);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    onError: (error) => {
+      console.warn('Google SDK error, showing Google account chooser:', error);
+      setShowGoogleModal(true);
+    },
+  });
+
   if (!showAuthModal) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -53,7 +90,11 @@ export const AuthModal: React.FC = () => {
 
   const handleSocialLogin = async (provider: 'google' | 'github') => {
     if (provider === 'google') {
-      setShowGoogleModal(true);
+      try {
+        triggerGoogleLogin();
+      } catch (err) {
+        setShowGoogleModal(true);
+      }
       return;
     }
     setIsLoading(true);
@@ -62,12 +103,6 @@ export const AuthModal: React.FC = () => {
     const demoName = 'GitHub Creator';
     login(demoEmail, demoName, 'github');
     setIsLoading(false);
-  };
-
-  const handleGoogleSuccess = (googleUser: { email: string; name: string; avatarUrl?: string }) => {
-    login(googleUser.email, googleUser.name, 'google', googleUser.avatarUrl);
-    setShowAuthModal(false);
-    showToast(`Signed in as ${googleUser.name} (${googleUser.email})`, 'success');
   };
 
   const handleGuestDemo = () => {
