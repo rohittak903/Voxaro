@@ -1,8 +1,13 @@
 import https from 'https';
 
-function fetchGoogleTtsChunk(text: string, lang: string): Promise<Buffer> {
+const TTS_ENDPOINTS = [
+  (text: string, lang: string) => `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${encodeURIComponent(lang)}&client=tw-ob`,
+  (text: string, lang: string) => `https://translate.googleapis.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${encodeURIComponent(lang)}&client=gtx`,
+  (text: string, lang: string) => `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${encodeURIComponent(lang)}&client=gtx`
+];
+
+function fetchTtsWithEndpoint(url: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${encodeURIComponent(lang)}&client=tw-ob`;
     https.get(
       url,
       {
@@ -10,6 +15,7 @@ function fetchGoogleTtsChunk(text: string, lang: string): Promise<Buffer> {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           Referer: 'https://translate.google.com/',
         },
+        timeout: 8000
       },
       (res) => {
         if (res.statusCode !== 200) {
@@ -24,35 +30,38 @@ function fetchGoogleTtsChunk(text: string, lang: string): Promise<Buffer> {
   });
 }
 
-function splitTextIntoChunks(text: string, maxLen = 170): string[] {
-  const sentences = text.split(/([.!?;?\n]+)/g).filter(Boolean);
+async function fetchGoogleTtsChunk(text: string, lang: string): Promise<Buffer> {
+  let lastError: any = null;
+  for (const getUrl of TTS_ENDPOINTS) {
+    try {
+      const url = getUrl(text, lang);
+      const buffer = await fetchTtsWithEndpoint(url);
+      if (buffer && buffer.length > 100) {
+        return buffer;
+      }
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError || new Error('All TTS endpoints failed');
+}
+
+function splitTextIntoChunks(text: string, maxLen = 180): string[] {
+  if (text.length <= maxLen) return [text];
+
+  const words = text.split(/\s+/).filter(Boolean);
   const chunks: string[] = [];
   let current = '';
 
-  for (let i = 0; i < sentences.length; i++) {
-    const part = sentences[i];
-    if ((current + part).length <= maxLen) {
-      current += part;
+  for (const word of words) {
+    if ((current + ' ' + word).trim().length <= maxLen) {
+      current = (current + ' ' + word).trim();
     } else {
-      if (current.trim()) chunks.push(current.trim());
-      if (part.length > maxLen) {
-        const words = part.split(/\s+/);
-        let wordChunk = '';
-        for (const w of words) {
-          if ((wordChunk + ' ' + w).length <= maxLen) {
-            wordChunk += (wordChunk ? ' ' : '') + w;
-          } else {
-            if (wordChunk.trim()) chunks.push(wordChunk.trim());
-            wordChunk = w;
-          }
-        }
-        current = wordChunk;
-      } else {
-        current = part;
-      }
+      if (current) chunks.push(current);
+      current = word;
     }
   }
-  if (current.trim()) chunks.push(current.trim());
+  if (current) chunks.push(current);
   return chunks.length > 0 ? chunks : [text.slice(0, maxLen)];
 }
 
@@ -73,9 +82,13 @@ export default async function handler(req: any, res: any) {
     return res.status(400).json({ error: 'Text parameter is required' });
   }
 
-  // Clean pause markers
-  const cleanText = rawText.replace(/\[pause:([\d.]+(?:s|ms)?)\]/gi, ', ');
-  const chunks = splitTextIntoChunks(cleanText, 170);
+  // Clean pause markers and sanitize text
+  const cleanText = rawText
+    .replace(/\[pause:([\d.]+(?:s|ms)?)\]/gi, ', ')
+    .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}]/gu, '')
+    .trim();
+
+  const chunks = splitTextIntoChunks(cleanText, 180);
 
   try {
     const audioBuffers: Buffer[] = [];

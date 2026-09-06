@@ -117,6 +117,64 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const playbackTimerRef = useRef<number | null>(null);
   const isGeneratingRef = useRef(false);
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
+
+  // Initialize and bind HTML5 Audio Element for seamless high-fidelity speech playback
+  useEffect(() => {
+    const audio = new Audio();
+    audio.preload = 'auto';
+
+    const handleTimeUpdate = () => {
+      if (audio && !isNaN(audio.currentTime)) {
+        setCurrentTime(audio.currentTime);
+      }
+    };
+
+    const handleLoadedMetadata = () => {
+      if (audio && audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
+        setDuration(Math.round(audio.duration * 10) / 10);
+      }
+    };
+
+    const handleEnded = () => {
+      setIsPlaying(false);
+      setCurrentTime(0);
+    };
+
+    const handlePause = () => {
+      setIsPlaying(false);
+    };
+
+    const handlePlay = () => {
+      setIsPlaying(true);
+    };
+
+    const handleError = (e: any) => {
+      console.warn('Audio playback error:', e);
+      setIsPlaying(false);
+    };
+
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('error', handleError);
+
+    audioElementRef.current = audio;
+
+    return () => {
+      audio.pause();
+      audio.src = '';
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('error', handleError);
+      audioElementRef.current = null;
+    };
+  }, []);
 
   // Cross-device & Login/Logout Sync Event Listeners
   useEffect(() => {
@@ -129,6 +187,10 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const handleUserLoggedOut = () => {
       setHistory([]);
       setCurrentJob(null);
+      if (audioElementRef.current) {
+        audioElementRef.current.pause();
+        audioElementRef.current.src = '';
+      }
       AudioSynthesisEngine.stopSpeaking();
       stopPlaybackProgress();
       setIsPlaying(false);
@@ -176,6 +238,10 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     return () => {
       if (playbackTimerRef.current) clearInterval(playbackTimerRef.current);
+      if (audioElementRef.current) {
+        audioElementRef.current.pause();
+        audioElementRef.current.src = '';
+      }
       AudioSynthesisEngine.stopSpeaking();
     };
   }, []);
@@ -203,15 +269,40 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, interval);
   };
 
-  // Play Speech Aloud with real-time word boundary sync
-  const playSpeechAloud = (job: GenerationJob, startOffsetSec: number = 0) => {
+  // Play Speech Aloud with real-time waveform sync (HTML5 Audio with Web Speech fallback)
+  const playSpeechAloud = async (job: GenerationJob, startOffsetSec: number = 0) => {
     AudioSynthesisEngine.stopSpeaking();
     stopPlaybackProgress();
 
     const targetDuration = job.duration || estimateAudioDuration(job.inputText, job.speed);
+    setDuration(targetDuration);
+
+    const audio = audioElementRef.current;
+    if (audio && job.audioUrl) {
+      try {
+        if (audio.src !== job.audioUrl) {
+          audio.src = job.audioUrl;
+          audio.load();
+        }
+        audio.volume = volume;
+        audio.playbackRate = Math.max(0.5, Math.min(2.0, playbackRate * (job.speed || 1.0)));
+        audio.loop = isLooping;
+        audio.currentTime = startOffsetSec;
+
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          await playPromise;
+        }
+        setIsPlaying(true);
+        return;
+      } catch (audioErr) {
+        console.warn('HTML5 Audio playback error, falling back to Web Speech API', audioErr);
+      }
+    }
+
+    // Fallback to Web Speech API with simulated progress if HTML5 audio not available
     setIsPlaying(true);
     setCurrentTime(startOffsetSec);
-    setDuration(targetDuration);
     startPlaybackProgress(targetDuration, startOffsetSec);
 
     const totalChars = job.inputText.length || 1;
@@ -363,6 +454,10 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const cancelGeneration = () => {
     isGeneratingRef.current = false;
     setIsGenerating(false);
+    if (audioElementRef.current) {
+      audioElementRef.current.pause();
+      audioElementRef.current.currentTime = 0;
+    }
     AudioSynthesisEngine.stopSpeaking();
     stopPlaybackProgress();
     setIsPlaying(false);
@@ -377,6 +472,9 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     if (isPlaying) {
+      if (audioElementRef.current) {
+        audioElementRef.current.pause();
+      }
       AudioSynthesisEngine.stopSpeaking();
       stopPlaybackProgress();
       setIsPlaying(false);
@@ -387,24 +485,36 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const seekTo = (time: number) => {
     setCurrentTime(time);
-    if (currentJob) {
+    if (audioElementRef.current && currentJob?.audioUrl) {
+      audioElementRef.current.currentTime = time;
+    }
+    if (currentJob && !audioElementRef.current) {
       playSpeechAloud(currentJob, time);
     }
   };
 
   const setVolume = (v: number) => {
     setVolumeState(v);
+    if (audioElementRef.current) {
+      audioElementRef.current.volume = v;
+    }
   };
 
   const setPlaybackRate = (r: number) => {
     setPlaybackRateState(r);
-    if (currentJob && isPlaying) {
-      playSpeechAloud(currentJob, currentTime);
+    if (audioElementRef.current && currentJob) {
+      audioElementRef.current.playbackRate = Math.max(0.5, Math.min(2.0, r * (currentJob.speed || 1.0)));
     }
   };
 
   const toggleLoop = () => {
-    setIsLooping(prev => !prev);
+    setIsLooping(prev => {
+      const next = !prev;
+      if (audioElementRef.current) {
+        audioElementRef.current.loop = next;
+      }
+      return next;
+    });
   };
 
   // Preview Voice Samples
@@ -441,6 +551,10 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     if (currentJob?.id === id) {
       setCurrentJob(null);
+      if (audioElementRef.current) {
+        audioElementRef.current.pause();
+        audioElementRef.current.src = '';
+      }
       AudioSynthesisEngine.stopSpeaking();
       stopPlaybackProgress();
       setIsPlaying(false);
@@ -458,6 +572,10 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     }
     setCurrentJob(null);
+    if (audioElementRef.current) {
+      audioElementRef.current.pause();
+      audioElementRef.current.src = '';
+    }
     AudioSynthesisEngine.stopSpeaking();
     stopPlaybackProgress();
     setIsPlaying(false);
@@ -472,6 +590,11 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setPitch(job.pitch);
     setTone(job.tone);
     setCurrentJob(job);
+    if (audioElementRef.current && job.audioUrl) {
+      audioElementRef.current.pause();
+      audioElementRef.current.src = job.audioUrl;
+      audioElementRef.current.currentTime = 0;
+    }
     showToast('Loaded into studio editor', 'success');
   };
 

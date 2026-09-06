@@ -231,7 +231,34 @@ export class AudioSynthesisEngine {
         }
       }
     } catch (apiErr) {
-      console.warn('Online neural TTS failed, falling back to local vocal synthesizer', apiErr);
+      console.warn('Online neural TTS endpoint failed, attempting direct cloud speech', apiErr);
+    }
+
+    // 1.5 SECONDARY: Direct Google Speech Fallback
+    try {
+      const directUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(cleanText.slice(0, 200))}&tl=${encodeURIComponent(langPrefix)}&client=tw-ob`;
+      const directRes = await fetch(directUrl);
+      if (directRes.ok) {
+        const directBuf = await directRes.arrayBuffer();
+        if (directBuf.byteLength > 200) {
+          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+          if (AudioContextClass) {
+            const audioCtx = new AudioContextClass();
+            try {
+              const decodedBuffer = await audioCtx.decodeAudioData(directBuf.slice(0));
+              const processedBuffer = await processSpokenAudioBuffer(decodedBuffer, speed, pitchSemitones, emotionParams);
+              const audioBlob = audioBufferToWavBlob(processedBuffer);
+              const audioUrl = URL.createObjectURL(audioBlob);
+              onProgress?.(100, 'Speech generation complete!');
+              return { audioBlob, audioUrl, duration: Math.max(1.0, Math.round(processedBuffer.duration * 10) / 10) };
+            } finally {
+              try { audioCtx.close(); } catch {}
+            }
+          }
+        }
+      }
+    } catch (directErr) {
+      console.warn('Direct cloud speech failed', directErr);
     }
 
     // 2. FALLBACK: High-Volume Vocal Formant Engine (Offline)
