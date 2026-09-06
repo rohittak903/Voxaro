@@ -63,7 +63,7 @@ interface AudioContextType {
 const AudioContext = createContext<AudioContextType | undefined>(undefined);
 
 export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, planDetails, recordUsage, showToast, setShowPricingModal, t } = useUser();
+  const { user, planDetails, recordUsage, showToast, setShowPricingModal, isAuthenticated, setShowAuthModal, t } = useUser();
 
   const draft = StorageService.loadDraft();
   const initialVoice = VOICES.find(v => v.id === draft.voiceId) || VOICES[0];
@@ -195,6 +195,13 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Generation Trigger
   const generateAudio = async (): Promise<boolean> => {
+    // 0. Authentication Gate: prompt sign in if not authenticated
+    if (!isAuthenticated) {
+      showToast('Please sign in with Google to generate speech audio', 'info');
+      setShowAuthModal(true);
+      return false;
+    }
+
     const trimmed = inputText.trim();
 
     // 1. Validation
