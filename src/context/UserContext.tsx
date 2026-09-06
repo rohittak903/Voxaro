@@ -107,14 +107,28 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isTourActive, setIsTourActive] = useState(false);
 
   useEffect(() => {
+    // 1. Initial fetch from cloud to guarantee fresh prices on mobile/desktop
+    AdminService.fetchLatestPlanConfigs().then(latestPlans => {
+      if (latestPlans) setPlans(latestPlans);
+    });
+
+    // 2. Local window events listener
     const handlePlansUpdated = () => {
       setPlans(AdminService.getPlanConfigs());
     };
     window.addEventListener('voxaro_plans_updated', handlePlansUpdated);
     window.addEventListener('storage', handlePlansUpdated);
+
+    // 3. Live global cloud plans synchronization (SSE + 10s poll + focus wakeup for mobile)
+    const stopGlobalPlansSync = CloudSyncService.startGlobalPlansSync((updatedPlans) => {
+      setPlans(updatedPlans);
+      localStorage.setItem('voxaro_custom_plans', JSON.stringify(updatedPlans));
+    });
+
     return () => {
       window.removeEventListener('voxaro_plans_updated', handlePlansUpdated);
       window.removeEventListener('storage', handlePlansUpdated);
+      stopGlobalPlansSync();
     };
   }, []);
 

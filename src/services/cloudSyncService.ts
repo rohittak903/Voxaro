@@ -1,4 +1,4 @@
-import { GenerationJob, UserProfile, InvoiceRecord, PronunciationRule, AuthUser, PlanType } from '../types';
+import { GenerationJob, UserProfile, InvoiceRecord, PronunciationRule, AuthUser, PlanType, PlanDetails } from '../types';
 import { StorageService } from './storage';
 
 export interface AccountSyncPayload {
@@ -237,6 +237,156 @@ export class CloudSyncService {
   }
 
   /**
+   * Pulls the latest global plan configurations from the cloud
+   */
+  static async fetchGlobalPlans(): Promise<Record<PlanType, PlanDetails> | null> {
+    // 1. Try local serverless endpoint
+    try {
+      const res = await fetch('/api/sync?type=plans');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data && (json.data.free || json.data.creator || json.data.pro)) {
+          return json.data as Record<PlanType, PlanDetails>;
+        }
+      }
+    } catch (err) {}
+
+    // 2. Direct Cloud Topic Fallback
+    try {
+      const res = await fetch(`https://ntfy.sh/vx_global_plans_cfg/json?poll=1`);
+      if (res.ok) {
+        const text = await res.text();
+        const lines = text.trim().split('\n').filter(Boolean);
+        for (let i = lines.length - 1; i >= 0; i--) {
+          try {
+            const item = JSON.parse(lines[i]);
+            if (item.event === 'message' && item.message) {
+              const data = JSON.parse(item.message);
+              if (data && (data.free || data.creator || data.pro)) {
+                return data as Record<PlanType, PlanDetails>;
+              }
+            }
+          } catch {}
+        }
+      }
+    } catch (err) {
+      console.warn('Direct global plans cloud topic fallback fetch error', err);
+    }
+
+    return null;
+  }
+
+  /**
+   * Pushes updated global plan configurations to cloud backend & global topic
+   */
+  static async pushGlobalPlans(plans: Record<PlanType, PlanDetails>): Promise<boolean> {
+    let success = false;
+
+    // 1. Push to /api/sync
+    try {
+      const res = await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'global_plans', plans })
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success) success = true;
+      }
+    } catch (err) {}
+
+    // 2. Relay directly to ntfy cloud topic for instant cross-device updates
+    try {
+      await fetch(`https://ntfy.sh/vx_global_plans_cfg`, {
+        method: 'POST',
+        headers: {
+          'Title': 'Voxaro Global Plans',
+          'Tags': 'plans'
+        },
+        body: JSON.stringify(plans)
+      });
+      success = true;
+    } catch (err) {}
+
+    // 3. Notify other tabs on this device via BroadcastChannel
+    if (this.broadcastChannel) {
+      this.broadcastChannel.postMessage({
+        type: 'GLOBAL_PLANS_UPDATED',
+        plans,
+        timestamp: Date.now()
+      });
+    }
+
+    return success;
+  }
+
+  /**
+   * Starts live global plans synchronization across mobile and desktop devices
+   */
+  static startGlobalPlansSync(onUpdate: (plans: Record<PlanType, PlanDetails>) => void): () => void {
+    let es: EventSource | null = null;
+    let pollTimer: any = null;
+
+    // 1. Setup SSE stream for global plans
+    try {
+      if (typeof window !== 'undefined' && 'EventSource' in window) {
+        es = new EventSource(`https://ntfy.sh/vx_global_plans_cfg/sse`);
+        es.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.event === 'message' && data.message) {
+              const plans = JSON.parse(data.message) as Record<PlanType, PlanDetails>;
+              if (plans && (plans.free || plans.creator || plans.pro)) {
+                onUpdate(plans);
+              }
+            }
+          } catch {}
+        };
+      }
+    } catch (e) {}
+
+    // 2. Immediate fetch and periodic polling every 10s (crucial for mobile wakeups)
+    const handlePoll = async () => {
+      const plans = await this.fetchGlobalPlans();
+      if (plans && (plans.free || plans.creator || plans.pro)) {
+        onUpdate(plans);
+      }
+    };
+
+    handlePoll();
+    pollTimer = setInterval(handlePoll, 10000);
+
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        handlePoll();
+      }
+    };
+    const handleFocus = () => handlePoll();
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', handleFocus);
+      document.addEventListener('visibilitychange', handleVisibility);
+    }
+
+    // 3. Cross-tab BroadcastChannel listener
+    const unsubscribeBroadcast = this.subscribeToSyncEvents((event) => {
+      if (event.type === 'GLOBAL_PLANS_UPDATED' && event.plans) {
+        onUpdate(event.plans);
+      }
+    });
+
+    return () => {
+      if (es) es.close();
+      if (pollTimer) clearInterval(pollTimer);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', handleFocus);
+        document.removeEventListener('visibilitychange', handleVisibility);
+      }
+      unsubscribeBroadcast();
+    };
+  }
+
+  /**
    * Starts live background synchronization across active devices via SSE + periodic polling
    */
   static startLiveDeviceSync(
@@ -305,7 +455,7 @@ export class CloudSyncService {
     }
 
     const handler = (e: MessageEvent) => {
-      if (e.data && e.data.type === 'CLOUD_SYNC_UPDATED') {
+      if (e.data && (e.data.type === 'CLOUD_SYNC_UPDATED' || e.data.type === 'GLOBAL_PLANS_UPDATED')) {
         callback(e.data);
       }
     };

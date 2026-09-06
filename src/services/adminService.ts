@@ -1,5 +1,6 @@
 import { AdminUserItem, AdminTransactionItem, AdminVoiceOverride, NotificationItem, PlanType, AppView, UserProfile, AuthUser, PlanDetails } from '../types';
 import { StorageService } from './storage';
+import { CloudSyncService } from './cloudSyncService';
 import { VOICES } from '../data/voices';
 
 const STORAGE_KEYS = {
@@ -364,12 +365,32 @@ export class AdminService {
     }
   }
 
+  static async fetchLatestPlanConfigs(): Promise<Record<PlanType, PlanDetails>> {
+    try {
+      const cloudPlans = await CloudSyncService.fetchGlobalPlans();
+      if (cloudPlans && (cloudPlans.free || cloudPlans.creator || cloudPlans.pro)) {
+        localStorage.setItem(STORAGE_KEYS.PLAN_CONFIGS, JSON.stringify(cloudPlans));
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('voxaro_plans_updated', { detail: cloudPlans }));
+        }
+        return cloudPlans;
+      }
+    } catch (e) {
+      console.warn('Failed to fetch latest plan configs from cloud', e);
+    }
+    return this.getPlanConfigs();
+  }
+
   static savePlanConfigs(plans: Record<PlanType, PlanDetails>): void {
     try {
       localStorage.setItem(STORAGE_KEYS.PLAN_CONFIGS, JSON.stringify(plans));
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('voxaro_plans_updated', { detail: plans }));
       }
+      // Push to global cloud topic & serverless endpoint so all mobile & desktop devices get the update
+      CloudSyncService.pushGlobalPlans(plans).catch(e => {
+        console.warn('Cloud sync error for global plans', e);
+      });
     } catch (e) {
       console.warn('Failed to save plan configs', e);
     }
@@ -381,6 +402,9 @@ export class AdminService {
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('voxaro_plans_updated', { detail: DEFAULT_PLAN_CONFIGS }));
       }
+      CloudSyncService.pushGlobalPlans(DEFAULT_PLAN_CONFIGS).catch(e => {
+        console.warn('Cloud sync error for resetting global plans', e);
+      });
     } catch (e) {
       console.warn('Failed to reset plan configs', e);
     }

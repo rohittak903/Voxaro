@@ -75,6 +75,48 @@ async function pushToCloudTopic(email: string, data: any): Promise<void> {
   }
 }
 
+const GLOBAL_PLANS_TOPIC = 'vx_global_plans_cfg';
+
+async function fetchGlobalPlansFromTopic(): Promise<any | null> {
+  try {
+    const res = await fetch(`https://ntfy.sh/${GLOBAL_PLANS_TOPIC}/json?poll=1`);
+    if (!res.ok) return null;
+    const text = await res.text();
+    const lines = text.trim().split('\n').filter(Boolean);
+    if (lines.length === 0) return null;
+
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const item = JSON.parse(lines[i]);
+        if (item.event === 'message' && item.message) {
+          const data = JSON.parse(item.message);
+          if (data && (data.free || data.creator || data.pro)) {
+            return data;
+          }
+        }
+      } catch {}
+    }
+  } catch (e) {
+    // offline fallback
+  }
+  return null;
+}
+
+async function pushGlobalPlansToTopic(plans: any): Promise<void> {
+  try {
+    await fetch(`https://ntfy.sh/${GLOBAL_PLANS_TOPIC}`, {
+      method: 'POST',
+      headers: {
+        'Title': 'Global Plans Config',
+        'Tags': 'plans,config'
+      },
+      body: JSON.stringify(plans)
+    });
+  } catch (e) {
+    // fallback
+  }
+}
+
 export default async function handler(req: any, res: any) {
   // CORS Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -85,11 +127,34 @@ export default async function handler(req: any, res: any) {
     return res.status(200).end();
   }
 
-  // GET: Fetch account state by email across all devices
+  // GET: Global Plans Sync OR User Account Sync
   if (req.method === 'GET') {
+    const queryType = (req.query?.type || req.query?.global || '').toString().toLowerCase().trim();
+    
+    // Global plans configuration query
+    if (queryType === 'plans' || queryType === 'global_plans') {
+      const fileStore = loadFileStore();
+      let plansData = memoryStore['__global_plans__'] || fileStore['__global_plans__'] || null;
+
+      const cloudPlans = await fetchGlobalPlansFromTopic();
+      if (cloudPlans) {
+        plansData = cloudPlans;
+        memoryStore['__global_plans__'] = plansData;
+        fileStore['__global_plans__'] = plansData;
+        saveFileStore(fileStore);
+      }
+
+      return res.status(200).json({
+        success: true,
+        type: 'plans',
+        found: !!plansData,
+        data: plansData || null
+      });
+    }
+
     const email = (req.query?.email || '').toString().toLowerCase().trim();
     if (!email) {
-      return res.status(400).json({ error: 'Email query parameter is required' });
+      return res.status(400).json({ error: 'Email or type query parameter is required' });
     }
 
     const fileStore = loadFileStore();
@@ -116,13 +181,33 @@ export default async function handler(req: any, res: any) {
     });
   }
 
-  // POST: Sync/Save account state
+  // POST: Global Plans Sync OR User Account State
   if (req.method === 'POST') {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    
+    // Global plans configuration save
+    if (body?.type === 'plans' || body?.type === 'global_plans' || (body?.plans && !body?.email)) {
+      const plans = body.plans || body;
+      const fileStore = loadFileStore();
+      
+      memoryStore['__global_plans__'] = plans;
+      fileStore['__global_plans__'] = plans;
+      saveFileStore(fileStore);
+
+      await pushGlobalPlansToTopic(plans);
+
+      return res.status(200).json({
+        success: true,
+        type: 'plans',
+        updatedAt: new Date().toISOString(),
+        data: plans
+      });
+    }
+
     const email = (body?.email || '').toString().toLowerCase().trim();
 
     if (!email) {
-      return res.status(400).json({ error: 'Email is required in payload' });
+      return res.status(400).json({ error: 'Email or type is required in payload' });
     }
 
     const fileStore = loadFileStore();

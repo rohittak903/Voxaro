@@ -22,9 +22,14 @@ export const AdminPlansTab: React.FC = () => {
   const [activePlanType, setActivePlanType] = useState<PlanType>('creator');
   const [newFeatureText, setNewFeatureText] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  // Sync state if external changes happen
+  // Sync state if external changes happen & fetch latest from cloud on mount
   useEffect(() => {
+    AdminService.fetchLatestPlanConfigs().then(latest => {
+      if (latest) setPlans(latest);
+    });
+
     const handleUpdate = () => {
       setPlans(AdminService.getPlanConfigs());
     };
@@ -56,10 +61,14 @@ export const AdminPlansTab: React.FC = () => {
     handleFieldChange('features', currentFeatures.filter((_, i) => i !== index));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    setIsSyncing(true);
     AdminService.savePlanConfigs(plans);
     setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 3000);
+    setTimeout(() => {
+      setSaveSuccess(false);
+      setIsSyncing(false);
+    }, 3000);
   };
 
   const handleReset = () => {
