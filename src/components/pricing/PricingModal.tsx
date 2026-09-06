@@ -13,7 +13,11 @@ import {
   Compass, 
   Globe2, 
   ArrowRight,
-  ChevronDown
+  ChevronDown,
+  Tag,
+  Flame,
+  Percent,
+  Clock
 } from 'lucide-react';
 
 export const PricingModal: React.FC<{ isStandalone?: boolean }> = ({ isStandalone = false }) => {
@@ -61,10 +65,31 @@ export const PricingModal: React.FC<{ isStandalone?: boolean }> = ({ isStandalon
   const planTypes: PlanType[] = ['free', 'creator', 'pro'];
 
   const content = (
-    <div className="space-y-8 max-w-5xl mx-auto py-2">
+    <div className="space-y-6 max-w-5xl mx-auto py-2">
       
+      {/* Promotional Discount Sale Banner */}
+      <div className="p-3.5 rounded-2xl bg-gradient-to-r from-rose-600 via-pink-600 to-indigo-600 text-white shadow-md flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+            <Flame className="w-4 h-4 text-amber-300 animate-bounce" />
+          </div>
+          <div>
+            <span className="text-xs font-black uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded text-amber-200 mr-2 inline-block">
+              Limited Time Flash Sale
+            </span>
+            <span className="text-xs font-bold">
+              Save up to 40% OFF all plans + extra 20% on Annual billing!
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 text-[11px] font-bold bg-black/25 px-3 py-1 rounded-xl">
+          <Clock className="w-3.5 h-3.5 text-amber-300" />
+          <span>Discount active for new signups</span>
+        </div>
+      </div>
+
       {/* Header */}
-      <div className="text-center space-y-2.5">
+      <div className="text-center space-y-2">
         <div className="flex items-center justify-center gap-2">
           <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300">
             Flexible Global Studio Plans
@@ -134,7 +159,7 @@ export const PricingModal: React.FC<{ isStandalone?: boolean }> = ({ isStandalon
               }`}
             >
               <span>Annual</span>
-              <span className="px-1.5 py-0.2 text-[9px] rounded bg-emerald-500 text-white font-extrabold">-20%</span>
+              <span className="px-1.5 py-0.2 text-[9px] rounded bg-emerald-500 text-white font-extrabold">-20% Extra</span>
             </button>
           </div>
         </div>
@@ -155,11 +180,15 @@ export const PricingModal: React.FC<{ isStandalone?: boolean }> = ({ isStandalon
           const isCurrent = user.plan === type;
           const isPopular = type === 'creator';
           
-          // Compute Base INR price
+          // Original & Discounted Sale INR base prices
+          const originalPrice = plan.originalPrice || (type === 'creator' ? 1999 : type === 'pro' ? 4999 : 0);
           const inrBasePrice = billingCycle === 'annual' ? Math.round(plan.price * 0.8) : plan.price;
+          const inrOriginalBasePrice = billingCycle === 'annual' ? Math.round(originalPrice * 0.8) : originalPrice;
           
-          // Formatted display price in target currency
+          // Formatted prices in target currency
           const formattedDisplayPrice = CurrencyService.formatPrice(inrBasePrice, currency.code);
+          const formattedOriginalPrice = CurrencyService.formatPrice(inrOriginalBasePrice, currency.code);
+          const savingsInr = Math.max(0, originalPrice - inrBasePrice);
 
           return (
             <div
@@ -177,7 +206,7 @@ export const PricingModal: React.FC<{ isStandalone?: boolean }> = ({ isStandalon
               )}
 
               <div>
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-3">
                   <div>
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white">{plan.name}</h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -186,19 +215,40 @@ export const PricingModal: React.FC<{ isStandalone?: boolean }> = ({ isStandalon
                   </div>
                 </div>
 
-                {/* Price Display */}
-                <div className="space-y-1 mb-6">
-                  <div className="flex items-baseline gap-1">
+                {/* Discounted Price & Sale Price Display Section */}
+                <div className="space-y-1.5 mb-6 p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-950/60 border border-slate-200/70 dark:border-slate-800/80">
+                  
+                  {/* Original Strike-through Price & Discount Badge */}
+                  {originalPrice > 0 && originalPrice > plan.price && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs sm:text-sm text-slate-400 dark:text-slate-500 line-through font-semibold font-mono">
+                        {formattedOriginalPrice}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-rose-500 text-white shadow-2xs flex items-center gap-1 animate-pulse">
+                        <Tag className="w-2.5 h-2.5" />
+                        {plan.discountBadge || `${plan.discountPercent || 40}% OFF`}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Prominent Discounted Sale Price */}
+                  <div className="flex items-baseline gap-1.5">
                     <span className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white">
                       {formattedDisplayPrice}
                     </span>
                     <span className="text-xs text-slate-400 font-semibold">/ month</span>
                   </div>
 
+                  {/* Savings summary */}
                   {plan.price > 0 && (
-                    <div className="text-[11px] text-slate-400 flex items-center gap-1 font-mono">
-                      <span>Base: ₹{inrBasePrice.toLocaleString('en-IN')} INR/mo</span>
-                      {billingCycle === 'annual' && <span className="text-emerald-500 font-bold">(Save 20%)</span>}
+                    <div className="pt-1 border-t border-slate-200/60 dark:border-slate-800/60 space-y-0.5">
+                      <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                        <span>Save ₹{savingsInr.toLocaleString('en-IN')} INR/mo</span>
+                        {billingCycle === 'annual' && <span className="text-indigo-500 font-extrabold">(+20% Extra)</span>}
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-mono">
+                        Base: ₹{inrBasePrice.toLocaleString('en-IN')} INR/mo (Regular: ₹{originalPrice.toLocaleString('en-IN')})
+                      </div>
                     </div>
                   )}
                 </div>
@@ -239,7 +289,7 @@ export const PricingModal: React.FC<{ isStandalone?: boolean }> = ({ isStandalon
                         : 'bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900'
                     }`}
                   >
-                    <span>{type === 'free' ? 'Downgrade to Free' : `Upgrade to ${plan.name}`}</span>
+                    <span>{type === 'free' ? 'Downgrade to Free' : `Claim Discount: Upgrade to ${plan.name}`}</span>
                     {type !== 'free' && <ArrowRight className="w-3.5 h-3.5" />}
                   </button>
                 )}

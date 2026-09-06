@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { AppView, AuthUser, InvoiceRecord, LocaleCode, NotificationItem, PlanDetails, PlanType, PronunciationRule, UserProfile } from '../types';
 import { StorageService } from '../services/storage';
+import { CloudSyncService } from '../services/cloudSyncService';
 import { AdminService, DEFAULT_PLAN_CONFIGS } from '../services/adminService';
 import { LOCALES, LocaleStrings } from '../data/locales';
 import { INITIAL_NOTIFICATIONS } from '../data/notifications';
@@ -126,13 +127,36 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('voxcraft_theme', theme);
   }, [theme]);
 
+  // Listen for Cloud Sync events across tabs / devices
+  useEffect(() => {
+    const unsubscribe = CloudSyncService.subscribeToSyncEvents((event) => {
+      if (authUser && event.email && event.email.toLowerCase() === authUser.email.toLowerCase()) {
+        const syncedData = event.data;
+        if (syncedData) {
+          setUser(prev => ({
+            ...prev,
+            name: syncedData.name || prev.name,
+            avatarUrl: syncedData.avatarUrl || prev.avatarUrl,
+            plan: syncedData.plan || prev.plan,
+            charactersUsedThisMonth: syncedData.charactersUsedThisMonth !== undefined ? syncedData.charactersUsedThisMonth : prev.charactersUsedThisMonth,
+            favorites: syncedData.favorites || prev.favorites,
+            customPronunciations: syncedData.customPronunciations || prev.customPronunciations
+          }));
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [authUser]);
+
   // Auth Handlers
-  const login = (email: string, name?: string, provider: 'email' | 'google' | 'github' | 'guest' = 'email', avatarUrl?: string) => {
-    const displayName = name || email.split('@')[0] || 'Studio Creator';
+  const login = async (email: string, name?: string, provider: 'email' | 'google' | 'github' | 'guest' = 'email', avatarUrl?: string) => {
+    const cleanEmail = email.toLowerCase().trim();
+    const displayName = name || cleanEmail.split('@')[0] || 'Studio Creator';
     const newAuth: AuthUser = {
       id: 'usr-' + Date.now(),
       name: displayName,
-      email,
+      email: cleanEmail,
       avatarUrl: avatarUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(displayName)}`,
       plan: user.plan,
       provider,
@@ -142,19 +166,36 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuthUser(newAuth);
     StorageService.saveAuthUser(newAuth);
 
+    // Initial local profile update
     const updatedProfile: UserProfile = {
       ...user,
       name: displayName,
-      email
+      email: cleanEmail
     };
     setUser(updatedProfile);
     StorageService.saveUserProfile(updatedProfile);
+
+    // Pull and merge cloud data for this account across devices
+    try {
+      const syncResult = await CloudSyncService.syncOnLogin(newAuth, (mergedProfile, mergedHistory) => {
+        setUser(mergedProfile);
+        window.dispatchEvent(new CustomEvent('voxaro_account_synced', { 
+          detail: { profile: mergedProfile, history: mergedHistory, email: cleanEmail } 
+        }));
+      });
+      setUser(syncResult.profile);
+      window.dispatchEvent(new CustomEvent('voxaro_account_synced', { 
+        detail: { profile: syncResult.profile, history: syncResult.history, email: cleanEmail } 
+      }));
+    } catch (e) {
+      console.warn('Sync on login fallback to local profile', e);
+    }
 
     // Real-time sync with Admin Registry
     AdminService.syncUserFromApp(updatedProfile, newAuth);
 
     setShowAuthModal(false);
-    showToast(`Welcome back, ${displayName}!`, 'success');
+    showToast(`Welcome back, ${displayName}! Account synced across devices.`, 'success');
   };
 
   const signup = (email: string, name: string) => {
@@ -163,8 +204,16 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    const currentEmail = authUser?.email;
     setAuthUser(null);
     StorageService.clearAuthUser();
+    
+    // Reset to clean unauthenticated state
+    const defaultProfile = StorageService.getUserProfile();
+    setUser(defaultProfile);
+
+    // Notify AudioContext and UI that user signed out
+    window.dispatchEvent(new CustomEvent('voxaro_user_logged_out', { detail: { email: currentEmail } }));
     showToast('Signed out successfully.', 'info');
   };
 
@@ -200,6 +249,11 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(updated);
     setInvoices(StorageService.loadInvoices());
     AdminService.syncUserFromApp(updated, authUser);
+    
+    if (authUser?.email) {
+      CloudSyncService.queueDebouncedSync(authUser.email, { plan: updated.plan });
+    }
+
     const planName = (plans[plan] || DEFAULT_PLAN_CONFIGS[plan]).name;
     showToast(`Successfully upgraded to ${planName}!`, 'success');
     setShowPricingModal(false);
@@ -216,6 +270,13 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const updated = StorageService.incrementUsage(chars);
     setUser(updated);
     AdminService.syncUserFromApp(updated, authUser);
+
+    if (authUser?.email) {
+      CloudSyncService.queueDebouncedSync(authUser.email, { 
+        charactersUsedThisMonth: updated.charactersUsedThisMonth 
+      });
+    }
+
     return true;
   };
 
@@ -223,6 +284,11 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const updatedFavs = StorageService.toggleFavorite(voiceId);
     setUser(prev => ({ ...prev, favorites: updatedFavs }));
     const isNowFav = updatedFavs.includes(voiceId);
+
+    if (authUser?.email) {
+      CloudSyncService.queueDebouncedSync(authUser.email, { favorites: updatedFavs });
+    }
+
     showToast(isNowFav ? 'Voice added to favorites' : 'Voice removed from favorites', 'info');
   };
 
@@ -231,6 +297,11 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updatePronunciations = (rules: PronunciationRule[]) => {
     StorageService.savePronunciations(rules);
     setUser(prev => ({ ...prev, customPronunciations: rules }));
+
+    if (authUser?.email) {
+      CloudSyncService.queueDebouncedSync(authUser.email, { customPronunciations: rules });
+    }
+
     showToast('Pronunciation rules updated', 'success');
   };
 

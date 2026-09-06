@@ -345,17 +345,35 @@ export const RazorpayCheckoutModal: React.FC = () => {
 
             {/* Order Total Breakdown */}
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2 text-xs">
+              {pricing.savingsInr > 0 && (
+                <div className="flex justify-between text-slate-500">
+                  <span>Regular List Price ({billingCycle}):</span>
+                  <span className="line-through text-slate-400 font-mono">
+                    ₹{pricing.regularTotal.toLocaleString()} INR
+                  </span>
+                </div>
+              )}
+
               <div className="flex justify-between text-slate-500">
-                <span>Plan Subtotal ({billingCycle}):</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                <span>Discounted Sale Subtotal:</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200 font-mono">
                   ₹{pricing.price.toLocaleString()} INR
                   {activeCurrency.code !== 'INR' && <span className="ml-1 text-primary-500">({convertedPriceStr})</span>}
                 </span>
               </div>
+
+              {pricing.savingsInr > 0 && (
+                <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-bold">
+                  <span>Special Promotional Discount:</span>
+                  <span>- ₹{pricing.savingsInr.toLocaleString()} INR ({pricing.savingsPercent}% OFF)</span>
+                </div>
+              )}
+
               <div className="flex justify-between text-slate-500">
                 <span>GST (18% Included):</span>
                 <span>₹{Math.round(pricing.price * 0.18).toLocaleString()} INR</span>
               </div>
+
               <div className="flex justify-between pt-2 border-t border-slate-200 dark:border-slate-800 font-extrabold text-sm text-slate-900 dark:text-white">
                 <span>Total Amount Due:</span>
                 <div className="text-right">

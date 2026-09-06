@@ -72,7 +72,11 @@ export type PlanType = 'free' | 'creator' | 'pro';
 export interface PlanDetails {
   type: PlanType;
   name: string;
-  price: number; // 0 for free, 15 for creator, 39 for pro
+  price: number; // Current discounted / sale price (INR)
+  originalPrice?: number; // Original / regular strike-through price (INR)
+  discountPercent?: number; // e.g. 40 for 40% OFF
+  discountBadge?: string; // e.g. '40% OFF SALE' or 'LAUNCH DEAL'
+  saleEndsIn?: string; // Optional countdown or promo tag
   monthlyLimit: number;
   features: string[];
   badgeColor: string;

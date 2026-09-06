@@ -62,9 +62,73 @@ function devTtsPlugin() {
   };
 }
 
+const localDevSyncStore: Record<string, any> = {};
+
+function devSyncPlugin() {
+  return {
+    name: 'dev-sync-middleware',
+    configureServer(server: any) {
+      server.middlewares.use('/api/sync', async (req: any, res: any) => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+        res.setHeader('Content-Type', 'application/json');
+
+        if (req.method === 'OPTIONS') {
+          res.statusCode = 200;
+          res.end();
+          return;
+        }
+
+        if (req.method === 'GET') {
+          const urlObj = new URL(req.url, 'http://localhost:3000');
+          const email = (urlObj.searchParams.get('email') || '').toLowerCase().trim();
+          if (!email) {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: 'Email query parameter required' }));
+            return;
+          }
+          const accountData = localDevSyncStore[email] || null;
+          res.statusCode = 200;
+          res.end(JSON.stringify({ success: true, email, found: !!accountData, data: accountData }));
+          return;
+        }
+
+        if (req.method === 'POST') {
+          let bodyStr = '';
+          req.on('data', (chunk: any) => { bodyStr += chunk; });
+          req.on('end', () => {
+            try {
+              const body = JSON.parse(bodyStr || '{}');
+              const email = (body.email || '').toLowerCase().trim();
+              if (!email) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ error: 'Email required in body' }));
+                return;
+              }
+              const existing = localDevSyncStore[email] || {};
+              const merged = { ...existing, ...body, email, lastSyncedAt: new Date().toISOString() };
+              localDevSyncStore[email] = merged;
+              res.statusCode = 200;
+              res.end(JSON.stringify({ success: true, email, lastSyncedAt: merged.lastSyncedAt, data: merged }));
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: err.message }));
+            }
+          });
+          return;
+        }
+
+        res.statusCode = 405;
+        res.end(JSON.stringify({ error: 'Method not allowed' }));
+      });
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(), devTtsPlugin()],
+  plugins: [react(), devTtsPlugin(), devSyncPlugin()],
   base: '/',
   server: {
     port: 3000,

@@ -189,11 +189,36 @@ export const AdminPlansTab: React.FC = () => {
               />
             </div>
 
-            {/* INR Base Price & Monthly Quota */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* INR Regular Price, Discounted Sale Price & Monthly Quota */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                  Monthly Price in INR (₹)
+                  Regular / Strike Price (₹)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-2.5 text-xs font-bold text-slate-400">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={current.originalPrice ?? current.price}
+                    onChange={(e) => {
+                      const orig = Math.max(0, parseInt(e.target.value) || 0);
+                      const discountPct = orig > current.price && orig > 0 ? Math.round(((orig - current.price) / orig) * 100) : 0;
+                      handleFieldChange('originalPrice', orig);
+                      handleFieldChange('discountPercent', discountPct);
+                    }}
+                    className="w-full pl-8 pr-3.5 py-2.5 rounded-xl text-xs font-mono font-bold bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  Original list price (with strike-through)
+                </span>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Discounted Sale Price (₹)
                 </label>
                 <div className="relative">
                   <span className="absolute left-3.5 top-2.5 text-xs font-bold text-slate-400">₹</span>
@@ -202,12 +227,18 @@ export const AdminPlansTab: React.FC = () => {
                     min="0"
                     step="1"
                     value={current.price}
-                    onChange={(e) => handleFieldChange('price', Math.max(0, parseInt(e.target.value) || 0))}
+                    onChange={(e) => {
+                      const newPrice = Math.max(0, parseInt(e.target.value) || 0);
+                      const orig = current.originalPrice || newPrice;
+                      const discountPct = orig > newPrice && orig > 0 ? Math.round(((orig - newPrice) / orig) * 100) : 0;
+                      handleFieldChange('price', newPrice);
+                      handleFieldChange('discountPercent', discountPct);
+                    }}
                     className="w-full pl-8 pr-3.5 py-2.5 rounded-xl text-xs font-mono font-bold bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
-                <span className="text-[10px] text-slate-400 mt-1 block">
-                  {current.price === 0 ? 'Free tier (₹0)' : `≈ $${Math.round(current.price / 86.8)} USD / €${Math.round(current.price / 94.2)} EUR`}
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-1 block">
+                  {current.price === 0 ? 'Free tier (₹0)' : `Live Sale Price (≈ $${Math.round(current.price / 86.8)} USD)`}
                 </span>
               </div>
 
@@ -224,6 +255,31 @@ export const AdminPlansTab: React.FC = () => {
                   className="w-full px-3.5 py-2.5 rounded-xl text-xs font-mono font-bold bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
                 <span className="text-[10px] text-slate-400 mt-1 block">Monthly renewal allocation</span>
+              </div>
+            </div>
+
+            {/* Discount Badge & Savings Callout */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20">
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Discount Sale Badge Text
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 40% OFF SALE"
+                  value={current.discountBadge || ''}
+                  onChange={(e) => handleFieldChange('discountBadge', e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-medium focus:outline-none"
+                />
+              </div>
+
+              <div className="flex flex-col justify-center">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Live Customer Savings</span>
+                <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                  {(current.originalPrice || current.price) > current.price
+                    ? `Save ₹${((current.originalPrice || current.price) - current.price).toLocaleString('en-IN')} / mo (${current.discountPercent || 40}% OFF)`
+                    : 'Standard Regular Pricing (No discount active)'}
+                </p>
               </div>
             </div>
 

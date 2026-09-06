@@ -20,17 +20,39 @@ export class PaymentService {
   /**
    * Dynamic Plans INR pricing table from AdminService
    */
-  static getPlanPriceInr(plan: PlanType, cycle: 'monthly' | 'yearly' = 'monthly'): { price: number; originalMonthly: number; savingsPercent: number } {
-    if (plan === 'free') return { price: 0, originalMonthly: 0, savingsPercent: 0 };
+  static getPlanPriceInr(plan: PlanType, cycle: 'monthly' | 'yearly' = 'monthly'): { 
+    price: number; 
+    originalMonthly: number; 
+    regularTotal: number;
+    savingsInr: number;
+    savingsPercent: number 
+  } {
+    if (plan === 'free') return { price: 0, originalMonthly: 0, regularTotal: 0, savingsInr: 0, savingsPercent: 0 };
     
     const planConfigs = AdminService.getPlanConfigs();
     const targetConfig = planConfigs[plan];
     const monthly = targetConfig?.price || (plan === 'pro' ? 2999 : 1199);
+    const originalMonthly = targetConfig?.originalPrice || (plan === 'pro' ? 4999 : 1999);
 
     if (cycle === 'yearly') {
-      return { price: Math.round(monthly * 12 * 0.8), originalMonthly: monthly * 12, savingsPercent: 20 };
+      const discountedYearly = Math.round(monthly * 12 * 0.8);
+      const regularYearly = originalMonthly * 12;
+      return { 
+        price: discountedYearly, 
+        originalMonthly,
+        regularTotal: regularYearly,
+        savingsInr: Math.max(0, regularYearly - discountedYearly),
+        savingsPercent: Math.round(((regularYearly - discountedYearly) / regularYearly) * 100) 
+      };
     }
-    return { price: monthly, originalMonthly: monthly, savingsPercent: 0 };
+
+    return { 
+      price: monthly, 
+      originalMonthly,
+      regularTotal: originalMonthly,
+      savingsInr: Math.max(0, originalMonthly - monthly),
+      savingsPercent: targetConfig?.discountPercent || Math.round(((originalMonthly - monthly) / originalMonthly) * 100) 
+    };
   }
 
   /**

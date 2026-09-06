@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { EmotionTone, GenerationJob, Voice } from '../types';
 import { VOICES } from '../data/voices';
 import { StorageService } from '../services/storage';
+import { CloudSyncService } from '../services/cloudSyncService';
 import { AudioSynthesisEngine } from '../services/audioSynthesizer';
 import { validateContent } from '../services/moderation';
 import { applyPronunciationOverrides, generateWaveformPeaks, estimateAudioDuration } from '../utils/helpers';
@@ -63,7 +64,7 @@ interface AudioContextType {
 const AudioContext = createContext<AudioContextType | undefined>(undefined);
 
 export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, planDetails, recordUsage, showToast, setShowPricingModal, isAuthenticated, setShowAuthModal, t } = useUser();
+  const { user, authUser, planDetails, recordUsage, showToast, setShowPricingModal, isAuthenticated, setShowAuthModal, t } = useUser();
 
   const draft = StorageService.loadDraft();
   const initialVoice = VOICES.find(v => v.id === draft.voiceId) || VOICES[0];
@@ -80,8 +81,13 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [generationProgress, setGenerationProgress] = useState(0);
   const [generationStatus, setGenerationStatus] = useState('');
   
-  // History & Active Job
-  const [history, setHistory] = useState<GenerationJob[]>(() => StorageService.loadHistory());
+  // History & Active Job: Only load persistent history for authenticated accounts
+  const [history, setHistory] = useState<GenerationJob[]>(() => {
+    if (typeof window !== 'undefined' && StorageService.loadAuthUser()) {
+      return StorageService.loadHistory();
+    }
+    return [];
+  });
   const [currentJob, setCurrentJob] = useState<GenerationJob | null>(null);
 
   // Audio Playback
@@ -100,6 +106,40 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const playbackTimerRef = useRef<number | null>(null);
   const isGeneratingRef = useRef(false);
 
+  // Cross-device & Login/Logout Sync Event Listeners
+  useEffect(() => {
+    const handleAccountSynced = (e: any) => {
+      if (e.detail && Array.isArray(e.detail.history)) {
+        setHistory(e.detail.history);
+      }
+    };
+
+    const handleUserLoggedOut = () => {
+      setHistory([]);
+      setCurrentJob(null);
+      AudioSynthesisEngine.stopSpeaking();
+      stopPlaybackProgress();
+      setIsPlaying(false);
+    };
+
+    window.addEventListener('voxaro_account_synced', handleAccountSynced);
+    window.addEventListener('voxaro_user_logged_out', handleUserLoggedOut);
+
+    const unsubscribe = CloudSyncService.subscribeToSyncEvents((event) => {
+      if (authUser && event.email && event.email.toLowerCase() === authUser.email.toLowerCase()) {
+        if (event.data && Array.isArray(event.data.history)) {
+          setHistory(event.data.history);
+        }
+      }
+    });
+
+    return () => {
+      window.removeEventListener('voxaro_account_synced', handleAccountSynced);
+      window.removeEventListener('voxaro_user_logged_out', handleUserLoggedOut);
+      unsubscribe();
+    };
+  }, [authUser]);
+
   // Auto-save draft every 5 seconds (FR-1.4)
   useEffect(() => {
     const timer = setInterval(() => {
@@ -113,10 +153,12 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => clearInterval(timer);
   }, [inputText, selectedVoice, speed, pitch, tone]);
 
-  // Auto-save history changes
+  // Auto-save history changes (ONLY for authenticated logged-in accounts)
   useEffect(() => {
-    StorageService.saveHistory(history);
-  }, [history]);
+    if (isAuthenticated) {
+      StorageService.saveHistory(history);
+    }
+  }, [history, isAuthenticated]);
 
   // Clean up timer on unmount
   useEffect(() => {
@@ -195,13 +237,6 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Generation Trigger
   const generateAudio = async (): Promise<boolean> => {
-    // 0. Authentication Gate: prompt sign in if not authenticated
-    if (!isAuthenticated) {
-      showToast('Please sign in with Google to generate speech audio', 'info');
-      setShowAuthModal(true);
-      return false;
-    }
-
     const trimmed = inputText.trim();
 
     // 1. Validation
@@ -223,9 +258,11 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return false;
     }
 
-    // 3. Quota check
-    const allowed = recordUsage(trimmed.length);
-    if (!allowed) return false;
+    // 3. Quota check (only deduct quota if authenticated)
+    if (isAuthenticated) {
+      const allowed = recordUsage(trimmed.length);
+      if (!allowed) return false;
+    }
 
     // 4. Premium Voice check
     if (selectedVoice.isPremium && user.plan === 'free') {
@@ -278,13 +315,27 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         waveformPeaks: generateWaveformPeaks(70, trimmed + selectedVoice.id)
       };
 
-      setHistory(prev => [newJob, ...prev]);
       setCurrentJob(newJob);
 
-      // Immediately play the speech audio loud and clear!
+      // IMMEDIATELY play the speech audio loud and clear!
       playSpeechAloud(newJob);
 
-      showToast('Audio synthesized and playing!', 'success');
+      // RULE: IF USER IS NOT LOGGED IN -> DO NOT SAVE TO HISTORY OR CLOUD
+      if (!isAuthenticated) {
+        showToast('Speech playing! (Guest mode: Not saved to history. Sign in with Google to sync across devices)', 'info');
+      } else {
+        // Authenticated user: Save to persistent history and sync across all devices
+        const updatedHistory = [newJob, ...history];
+        setHistory(updatedHistory);
+        StorageService.saveHistory(updatedHistory);
+
+        if (authUser?.email) {
+          CloudSyncService.queueDebouncedSync(authUser.email, { history: updatedHistory });
+        }
+
+        showToast('Audio synthesized & saved to your account!', 'success');
+      }
+
       return true;
     } catch (err: any) {
       console.error('Generation error', err);
@@ -364,9 +415,16 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setPreviewingVoiceId(null);
   };
 
-  // History Management
+  // History Management with Cross-Device Cloud Sync
   const deleteHistoryItem = (id: string) => {
-    setHistory(prev => prev.filter(j => j.id !== id));
+    const updated = history.filter(j => j.id !== id);
+    setHistory(updated);
+    if (isAuthenticated) {
+      StorageService.saveHistory(updated);
+      if (authUser?.email) {
+        CloudSyncService.queueDebouncedSync(authUser.email, { history: updated });
+      }
+    }
     if (currentJob?.id === id) {
       setCurrentJob(null);
       AudioSynthesisEngine.stopSpeaking();
@@ -378,6 +436,12 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const clearHistory = () => {
     setHistory([]);
+    if (isAuthenticated) {
+      StorageService.saveHistory([]);
+      if (authUser?.email) {
+        CloudSyncService.queueDebouncedSync(authUser.email, { history: [] });
+      }
+    }
     setCurrentJob(null);
     AudioSynthesisEngine.stopSpeaking();
     stopPlaybackProgress();

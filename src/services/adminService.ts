@@ -14,6 +14,8 @@ export const DEFAULT_PLAN_CONFIGS: Record<PlanType, PlanDetails> = {
     type: 'free',
     name: 'Free Tier',
     price: 0,
+    originalPrice: 0,
+    discountPercent: 0,
     monthlyLimit: 10000,
     features: [
       '10,000 characters / month',
@@ -32,6 +34,10 @@ export const DEFAULT_PLAN_CONFIGS: Record<PlanType, PlanDetails> = {
     type: 'creator',
     name: 'Creator Studio',
     price: 1199,
+    originalPrice: 1999,
+    discountPercent: 40,
+    discountBadge: '40% OFF SALE',
+    saleEndsIn: 'Limited Period Offer',
     monthlyLimit: 100000,
     features: [
       '100,000 characters / month',
@@ -51,6 +57,10 @@ export const DEFAULT_PLAN_CONFIGS: Record<PlanType, PlanDetails> = {
     type: 'pro',
     name: 'Pro Enterprise',
     price: 2999,
+    originalPrice: 4999,
+    discountPercent: 40,
+    discountBadge: '40% OFF PRO SALE',
+    saleEndsIn: 'Launch Exclusive Discount',
     monthlyLimit: 500000,
     features: [
       '500,000 characters / month',
