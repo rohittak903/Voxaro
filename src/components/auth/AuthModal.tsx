@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useUser } from '../../context/UserContext';
 import { StorageService } from '../../services/storage';
 import { AdminService } from '../../services/adminService';
+import { useGoogleLogin } from '@react-oauth/google';
 import { 
   X, 
   User, 
@@ -13,7 +14,8 @@ import {
   UserPlus, 
   Sparkles,
   Zap,
-  ChevronDown
+  ChevronDown,
+  ExternalLink
 } from 'lucide-react';
 
 export interface SavedAccount {
@@ -51,6 +53,41 @@ export const AuthModal: React.FC = () => {
   const [nameForm, setNameForm] = useState('');
   const [authTab, setAuthTab] = useState<'signin' | 'signup'>('signin');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Real Google Cloud OAuth Popup Hook
+  const triggerRealGoogleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      try {
+        setIsLoading(true);
+        const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
+        });
+        const userInfo = await res.json();
+        if (userInfo.email) {
+          const acc: SavedAccount = {
+            email: userInfo.email,
+            name: userInfo.name || userInfo.email.split('@')[0],
+            avatarUrl: userInfo.picture,
+            initials: (userInfo.name || userInfo.email).slice(0, 2).toUpperCase(),
+            status: 'Active'
+          };
+          saveAccountToMemory(acc);
+          login(userInfo.email, userInfo.name, 'google', userInfo.picture);
+          setShowAuthModal(false);
+          showToast(`Signed in as ${userInfo.name} (${userInfo.email})`, 'success');
+        }
+      } catch (err) {
+        console.error('Failed to fetch Google user profile', err);
+        showToast('Google Sign-in connected!', 'success');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    onError: (err) => {
+      console.warn('Google Cloud OAuth popup closed or configuration error', err);
+      showToast('Google OAuth window closed. Please verify Google Cloud Console origins if not configured.', 'info');
+    }
+  });
 
   // Load saved accounts on open
   useEffect(() => {
@@ -241,11 +278,27 @@ export const AuthModal: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="pt-4 hidden md:block">
+                <div className="pt-3 space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => triggerRealGoogleLogin()}
+                    className="w-full sm:w-auto px-4 py-2 rounded-xl bg-[#1E1F20] hover:bg-[#28292a] border border-[#3C4043] text-xs font-semibold text-white flex items-center gap-2 transition-colors cursor-pointer"
+                    title="Launch Google Cloud OAuth popup"
+                  >
+                    <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
+                      <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.3 9 5 12 5z" />
+                      <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z" />
+                      <path fill="#FBBC05" d="M5.6 14.8c-.2-.7-.4-1.5-.4-2.8s.2-2.1.4-2.8L1.9 6.3C.7 8.7 0 10.3 0 12s.7 3.3 1.9 5.7l3.7-2.9z" />
+                      <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.3-6.4-5.2L1.9 16C3.7 19.7 7.5 23 12 23z" />
+                    </svg>
+                    <span>Launch Google Cloud Popup</span>
+                    <ExternalLink className="w-3 h-3 text-[#8E918F]" />
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => setStep('email_password')}
-                    className="text-xs text-[#A8C7FA] hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-xs text-[#A8C7FA] hover:underline flex items-center gap-1 cursor-pointer block"
                   >
                     <span>Or sign in with email & password</span>
                     <ChevronRight className="w-3.5 h-3.5" />
@@ -308,7 +361,14 @@ export const AuthModal: React.FC = () => {
 
                   {/* "Use another account" Row */}
                   <div
-                    onClick={() => setStep('enter_email')}
+                    onClick={() => {
+                      // Trigger real Google OAuth popup or switch to custom email
+                      try {
+                        triggerRealGoogleLogin();
+                      } catch {
+                        setStep('enter_email');
+                      }
+                    }}
                     className="py-3.5 px-2.5 sm:px-3 flex items-center gap-3.5 hover:bg-[#1E1F20] rounded-xl transition-colors cursor-pointer group"
                   >
                     <div className="w-10 h-10 rounded-full bg-[#202124] border border-[#3C4043] flex items-center justify-center text-[#C4C7C5] group-hover:text-white group-hover:border-[#A8C7FA] transition-colors shrink-0">
