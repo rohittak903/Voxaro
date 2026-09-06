@@ -33,9 +33,18 @@ export const PricingModal: React.FC<{ isStandalone?: boolean }> = ({ isStandalon
         setCurrency(e.detail);
       }
     };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowPricingModal(false);
+      }
+    };
     window.addEventListener('voxaro_currency_changed', handleCurrencyChange);
-    return () => window.removeEventListener('voxaro_currency_changed', handleCurrencyChange);
-  }, []);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('voxaro_currency_changed', handleCurrencyChange);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [setShowPricingModal]);
 
   if (!isStandalone && !showPricingModal) return null;
 
@@ -332,6 +341,17 @@ export const PricingModal: React.FC<{ isStandalone?: boolean }> = ({ isStandalon
         </div>
       </div>
 
+      {/* Dismiss / Keep current plan footer action */}
+      <div className="text-center pt-1">
+        <button
+          onClick={() => setShowPricingModal(false)}
+          className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors cursor-pointer inline-flex items-center gap-1.5"
+        >
+          <X className="w-3.5 h-3.5" />
+          <span>Cancel & Continue with Current Plan</span>
+        </button>
+      </div>
+
     </div>
   );
 
@@ -340,14 +360,26 @@ export const PricingModal: React.FC<{ isStandalone?: boolean }> = ({ isStandalon
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md overflow-y-auto animate-fadeIn">
+    <div 
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          setShowPricingModal(false);
+        }
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/75 backdrop-blur-md overflow-y-auto animate-fadeIn"
+    >
       <div className="w-full max-w-5xl rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 sm:p-8 relative my-8">
-        <button
-          onClick={() => setShowPricingModal(false)}
-          className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        {/* Prominent Top-Right Cancel / Close Button */}
+        <div className="absolute top-4 right-4 z-50">
+          <button
+            onClick={() => setShowPricingModal(false)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-extrabold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 shadow-sm transition-all hover:scale-105 cursor-pointer"
+            title="Cancel and close"
+          >
+            <span>Cancel</span>
+            <X className="w-4 h-4" />
+          </button>
+        </div>
         {content}
       </div>
     </div>

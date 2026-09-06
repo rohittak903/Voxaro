@@ -67,7 +67,19 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const { user, authUser, planDetails, recordUsage, showToast, setShowPricingModal, isAuthenticated, setShowAuthModal, t } = useUser();
 
   const draft = StorageService.loadDraft();
-  const initialVoice = VOICES.find(v => v.id === draft.voiceId) || VOICES[0];
+  const defaultFreeVoice = VOICES.find(v => !v.isPremium) || VOICES[0];
+  const initialVoice = (() => {
+    if (draft.voiceId) {
+      const found = VOICES.find(v => v.id === draft.voiceId);
+      if (found) {
+        if (user.plan === 'free' && found.isPremium) {
+          return defaultFreeVoice;
+        }
+        return found;
+      }
+    }
+    return defaultFreeVoice;
+  })();
 
   const [inputText, setInputText] = useState(draft.text || 'Welcome to Voxaro! Turn text into voice with natural, real, and limitless speech synthesis. Type or paste your text here to begin.');
   const [selectedVoice, setSelectedVoice] = useState<Voice>(initialVoice);

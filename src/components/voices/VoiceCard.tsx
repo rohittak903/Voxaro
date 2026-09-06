@@ -11,7 +11,7 @@ interface VoiceCardProps {
 
 export const VoiceCard: React.FC<VoiceCardProps> = ({ voice, onSelect }) => {
   const { selectedVoice, previewVoice, previewingVoiceId, stopPreview } = useAudio();
-  const { user, toggleFavorite, isFavorite, setShowPricingModal } = useUser();
+  const { user, toggleFavorite, isFavorite, setShowPricingModal, showToast } = useUser();
 
   const isSelected = selectedVoice.id === voice.id;
   const isFav = isFavorite(voice.id);
@@ -32,11 +32,10 @@ export const VoiceCard: React.FC<VoiceCardProps> = ({ voice, onSelect }) => {
   };
 
   const handleCardClick = () => {
-    if (voice.isPremium && user.plan === 'free') {
-      setShowPricingModal(true);
-      return;
-    }
     onSelect(voice);
+    if (voice.isPremium && user.plan === 'free') {
+      showToast(`"${voice.name}" is a Creator/Pro voice. Upgrade to unlock all premium voices, or choose any standard voice for your free 10,000 monthly credits.`, 'info');
+    }
   };
 
   return (
