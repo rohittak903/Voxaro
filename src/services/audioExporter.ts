@@ -151,15 +151,53 @@ export async function processSpokenAudioBuffer(
 }
 
 /**
- * Triggers a download in the browser for a given Blob
+ * Triggers a download in the browser for a given Blob safely
+ * Uses safe object URL lifecycle and Data URL fallback so Chrome never fails with Network Error
  */
 export function downloadAudioFile(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  setTimeout(() => URL.revokeObjectURL(url), 2500);
+  try {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    
+    // Clean up link node
+    setTimeout(() => {
+      if (document.body.contains(link)) {
+        document.body.removeChild(link);
+      }
+    }, 200);
+
+    // Keep object URL alive long enough for Chrome download manager to finish saving to disk
+    setTimeout(() => {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {}
+    }, 120000);
+  } catch (err) {
+    // Fallback: FileReader to Data URL
+    try {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.setAttribute('download', filename);
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          if (document.body.contains(link)) {
+            document.body.removeChild(link);
+          }
+        }, 200);
+      };
+      reader.readAsDataURL(blob);
+    } catch (e) {
+      console.error('Download failed', e);
+    }
+  }
 }

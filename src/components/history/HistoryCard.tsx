@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { GenerationJob } from '../../types';
 import { useAudio } from '../../context/AudioContext';
 import { useUser } from '../../context/UserContext';
 import { formatDate, formatTime } from '../../utils/helpers';
 import { downloadAudioFile } from '../../services/audioExporter';
-import { Play, Pause, Trash2, Edit3, Download, Share2, Sparkles, Volume2 } from 'lucide-react';
+import { AudioSynthesisEngine } from '../../services/audioSynthesizer';
+import { Play, Pause, Trash2, Edit3, Download, Share2, Sparkles, Volume2, Loader2 } from 'lucide-react';
 
 interface HistoryCardProps {
   job: GenerationJob;
@@ -21,6 +22,7 @@ export const HistoryCard: React.FC<HistoryCardProps> = ({ job }) => {
     setShowExportModal 
   } = useAudio();
   const { setCurrentView, showToast } = useUser();
+  const [isExporting, setIsExporting] = useState(false);
 
   const isCurrentActive = currentJob?.id === job.id;
   const isPlayingThis = isCurrentActive && isPlaying;
@@ -37,20 +39,33 @@ export const HistoryCard: React.FC<HistoryCardProps> = ({ job }) => {
     setCurrentView('editor');
   };
 
-  const handleDownload = () => {
-    if (job.audioBlob) {
-      downloadAudioFile(job.audioBlob, `voxaro-${job.voice.name.toLowerCase().replace(/\s+/g, '-')}-${job.id}.${job.format}`);
-      showToast('Download started', 'success');
-    } else if (job.audioUrl) {
-      const link = document.createElement('a');
-      link.href = job.audioUrl;
-      link.download = `voxaro-${job.voice.name.toLowerCase().replace(/\s+/g, '-')}-${job.id}.${job.format}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      showToast('Download started', 'success');
-    } else {
-      showToast('Audio file not cached locally', 'warning');
+  const handleDownload = async () => {
+    const filename = `voxaro-${job.voice.name.toLowerCase().replace(/\s+/g, '-')}-${job.id}.${job.format || 'wav'}`;
+    setIsExporting(true);
+
+    try {
+      if (job.audioBlob && job.audioBlob.size > 0) {
+        downloadAudioFile(job.audioBlob, filename);
+        showToast(`Downloaded ${filename} successfully!`, 'success');
+      } else {
+        // Regenerate fresh, loud audio blob on the fly so it NEVER fails with a network error
+        const res = await AudioSynthesisEngine.synthesizeJob(
+          job.inputText,
+          job.voice,
+          job.speed || 1.0,
+          job.pitch || 0,
+          job.tone || 'neutral'
+        );
+        job.audioBlob = res.audioBlob;
+        job.audioUrl = res.audioUrl;
+        downloadAudioFile(res.audioBlob, filename);
+        showToast(`Downloaded ${filename} successfully!`, 'success');
+      }
+    } catch (err) {
+      console.error('Download failed', err);
+      showToast('Download failed. Please try again.', 'error');
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -121,10 +136,11 @@ export const HistoryCard: React.FC<HistoryCardProps> = ({ job }) => {
         {/* Download */}
         <button
           onClick={handleDownload}
-          className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 transition-colors"
+          disabled={isExporting}
+          className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 transition-colors disabled:opacity-50 cursor-pointer"
           title="Download audio file"
         >
-          <Download className="w-4 h-4" />
+          {isExporting ? <Loader2 className="w-4 h-4 animate-spin text-emerald-500" /> : <Download className="w-4 h-4" />}
         </button>
 
         {/* Delete */}

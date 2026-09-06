@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useAudio } from '../../context/AudioContext';
 import { useUser } from '../../context/UserContext';
 import { downloadAudioFile } from '../../services/audioExporter';
-import { Download, Check, Crown, FileAudio, X, Sparkles } from 'lucide-react';
+import { AudioSynthesisEngine } from '../../services/audioSynthesizer';
+import { Download, Check, Crown, FileAudio, X, Sparkles, Loader2 } from 'lucide-react';
 
 export const ExportModal: React.FC = () => {
   const { currentJob, showExportModal, setShowExportModal } = useAudio();
@@ -12,7 +13,7 @@ export const ExportModal: React.FC = () => {
 
   if (!showExportModal || !currentJob) return null;
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (selectedFormat === 'wav' && !planDetails.wavExport) {
       showToast('Lossless WAV export is available on Creator and Pro plans.', 'warning');
       setShowPricingModal(true);
@@ -24,19 +25,25 @@ export const ExportModal: React.FC = () => {
     try {
       const filename = `voxaro-${currentJob.voice.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}.${selectedFormat}`;
       
-      if (currentJob.audioBlob) {
-        downloadAudioFile(currentJob.audioBlob, filename);
-      } else if (currentJob.audioUrl) {
-        const link = document.createElement('a');
-        link.href = currentJob.audioUrl;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+      let blob = currentJob.audioBlob;
+      if (!blob || blob.size === 0) {
+        const res = await AudioSynthesisEngine.synthesizeJob(
+          currentJob.inputText,
+          currentJob.voice,
+          currentJob.speed || 1.0,
+          currentJob.pitch || 0,
+          currentJob.tone || 'neutral'
+        );
+        blob = res.audioBlob;
+        currentJob.audioBlob = blob;
+        currentJob.audioUrl = res.audioUrl;
       }
+
+      downloadAudioFile(blob, filename);
       showToast(`Downloaded ${filename} successfully!`, 'success');
       setShowExportModal(false);
     } catch (err) {
+      console.error('Export failed', err);
       showToast('Export failed. Please try again.', 'error');
     } finally {
       setIsExporting(false);
@@ -145,10 +152,19 @@ export const ExportModal: React.FC = () => {
         <button
           onClick={handleDownload}
           disabled={isExporting}
-          className="w-full py-3 rounded-xl text-sm font-bold text-white bg-primary-600 hover:bg-primary-500 transition-colors shadow-lg shadow-primary-500/25 flex items-center justify-center gap-2"
+          className="w-full py-3 rounded-xl text-sm font-bold text-white bg-primary-600 hover:bg-primary-500 transition-colors shadow-lg shadow-primary-500/25 flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
         >
-          <Download className="w-4 h-4" />
-          <span>Download .{selectedFormat.toUpperCase()}</span>
+          {isExporting ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Preparing High-Quality Audio...</span>
+            </>
+          ) : (
+            <>
+              <Download className="w-4 h-4" />
+              <span>Download .{selectedFormat.toUpperCase()}</span>
+            </>
+          )}
         </button>
 
       </div>
