@@ -1,6 +1,6 @@
 import { EmotionTone, Voice } from '../types';
 import { getEmotionParameters, parseTextWithPauses, estimateAudioDuration } from '../utils/helpers';
-import { audioBufferToWavBlob } from './audioExporter';
+import { audioBufferToWavBlob, processSpokenAudioBuffer } from './audioExporter';
 
 export interface SynthesisProgressCallback {
   (progressPercent: number, statusMessage: string): void;
@@ -178,20 +178,66 @@ export class AudioSynthesisEngine {
     this.init();
 
     const emotionParams = getEmotionParameters(tone);
+    const cleanText = text.replace(/\[pause:([\d.]+(?:s|ms)?)\]/gi, ', ').trim();
+    const langPrefix = (voice.langCode || 'en').toLowerCase().replace('_', '-').split('-')[0];
 
-    onProgress?.(25, 'Analyzing text phonetics and vocal cadence...');
-    await new Promise(r => setTimeout(r, 120));
+    onProgress?.(20, `Synthesizing neural voice for ${voice.name} (${voice.language})...`);
 
-    onProgress?.(60, `Configuring acoustic voice formants for ${voice.name} (${tone} tone)...`);
-    await new Promise(r => setTimeout(r, 120));
+    // 1. PRIMARY: Fetch real, crystal-clear spoken speech audio from Neural TTS API
+    try {
+      const endpoint = `/api/tts?text=${encodeURIComponent(cleanText)}&lang=${encodeURIComponent(langPrefix)}`;
+      const response = await fetch(endpoint);
 
-    onProgress?.(85, 'Rendering high-fidelity voice audio waveform...');
+      if (response.ok) {
+        const arrayBuffer = await response.arrayBuffer();
+        if (arrayBuffer.byteLength > 200) {
+          onProgress?.(65, 'Decoding acoustic voice audio stream...');
 
-    // Calculate accurate duration matching the spoken speech speed with emotion rate
-    const cleanText = text.replace(/\[pause:([\d.]+(?:s|ms)?)\]/gi, ' ');
+          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+          if (AudioContextClass) {
+            const audioCtx = new AudioContextClass();
+            try {
+              const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
+              
+              onProgress?.(85, 'Applying studio tone, speed & master normalization...');
+              const processedBuffer = await processSpokenAudioBuffer(
+                decodedBuffer,
+                speed,
+                pitchSemitones,
+                emotionParams
+              );
+
+              // 16-bit Master-Peak-Normalized Lossless WAV Blob (95% full-scale volume)
+              const audioBlob = audioBufferToWavBlob(processedBuffer);
+              const audioUrl = URL.createObjectURL(audioBlob);
+
+              onProgress?.(100, 'Speech generation complete!');
+              return {
+                audioBlob,
+                audioUrl,
+                duration: Math.max(1.0, Math.round(processedBuffer.duration * 10) / 10)
+              };
+            } finally {
+              try { audioCtx.close(); } catch {}
+            }
+          } else {
+            // Direct MP3 Blob fallback
+            const audioBlob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+            const audioUrl = URL.createObjectURL(audioBlob);
+            const duration = estimateAudioDuration(cleanText, speed);
+            onProgress?.(100, 'Speech generation complete!');
+            return { audioBlob, audioUrl, duration };
+          }
+        }
+      }
+    } catch (apiErr) {
+      console.warn('Online neural TTS failed, falling back to local vocal synthesizer', apiErr);
+    }
+
+    // 2. FALLBACK: High-Volume Vocal Formant Engine (Offline)
+    onProgress?.(70, `Rendering offline vocal formants for ${voice.name}...`);
+
     const duration = Math.max(1.0, estimateAudioDuration(cleanText, speed * emotionParams.rateMod));
-
-    // 44.1kHz High-Definition Offline Audio Rendering
     const sampleRate = 44100;
     const totalSamples = Math.max(2048, Math.floor(sampleRate * duration));
     const offlineCtx = new (window.OfflineAudioContext || (window as any).webkitOfflineAudioContext)(
@@ -203,7 +249,6 @@ export class AudioSynthesisEngine {
     const isFemale = voice.gender === 'female';
     const basePitch = (isFemale ? 220 : 130) * Math.pow(2, pitchSemitones / 12) * emotionParams.pitchMod;
     
-    // Formant frequency definitions (Klatt Vocal Formants)
     const f1Center = isFemale ? 580 : 480;
     const f2Center = isFemale ? 1750 : 1450;
     const f3Center = isFemale ? 2850 : 2500;
@@ -213,58 +258,48 @@ export class AudioSynthesisEngine {
     const wordDuration = Math.min(0.65, (duration / wordCount) * 0.92);
     const pauseGap = Math.max(0.04, (duration - (wordDuration * wordCount)) / wordCount);
 
-    // Master bus compressor / limiter for maximum clarity and punch
     const masterGain = offlineCtx.createGain();
-    masterGain.gain.setValueAtTime(0.92, 0);
+    masterGain.gain.setValueAtTime(0.95, 0);
     masterGain.connect(offlineCtx.destination);
 
-    // Render each word/syllable with multi-formant vocal resonance
     for (let w = 0; w < wordCount; w++) {
       const word = words[w] || 'voice';
       const wordStart = w * (wordDuration + pauseGap);
       const wordEnd = Math.min(duration, wordStart + wordDuration);
       if (wordStart >= duration) break;
 
-      // Word pitch contour (natural intonation curve)
       const pitchOffset = Math.sin((w / wordCount) * Math.PI) * (isFemale ? 18 : 10) * emotionParams.pitchMod;
       const wordF0 = basePitch + pitchOffset;
 
-      // 1. Primary Glottal Vocal Oscillator (Sawtooth for harmonic richness)
       const osc1 = offlineCtx.createOscillator();
       osc1.type = 'sawtooth';
       osc1.frequency.setValueAtTime(wordF0 * 1.02, wordStart);
       osc1.frequency.exponentialRampToValueAtTime(wordF0 * 0.95, wordEnd);
 
-      // 2. Sub-Harmonic Body Oscillator (Warm Triangle for vocal depth)
       const osc2 = offlineCtx.createOscillator();
       osc2.type = 'triangle';
       osc2.frequency.setValueAtTime(wordF0 * 0.5, wordStart);
       osc2.frequency.exponentialRampToValueAtTime(wordF0 * 0.48, wordEnd);
 
-      // 3. Syllable Formant Filter Bank (F1, F2, F3 parallel resonance)
       const charCode = word.charCodeAt(0) || 65;
       const vowelShift = ((charCode % 7) - 3) * 35;
 
-      // Formant 1: Vowel warmth
       const filter1 = offlineCtx.createBiquadFilter();
       filter1.type = 'bandpass';
       filter1.frequency.setValueAtTime(Math.max(250, (f1Center + vowelShift) * emotionParams.resonance), wordStart);
       filter1.Q.setValueAtTime(2.8, wordStart);
 
-      // Formant 2: Vocal clarity & articulation
       const filter2 = offlineCtx.createBiquadFilter();
       filter2.type = 'bandpass';
       filter2.frequency.setValueAtTime(Math.max(800, (f2Center + vowelShift * 1.8) * emotionParams.resonance), wordStart);
       filter2.Q.setValueAtTime(3.2, wordStart);
 
-      // Formant 3: Treble brilliance
       const filter3 = offlineCtx.createBiquadFilter();
       filter3.type = 'peaking';
       filter3.frequency.setValueAtTime(f3Center, wordStart);
       filter3.Q.setValueAtTime(4.0, wordStart);
       filter3.gain.setValueAtTime(6.0, wordStart);
 
-      // 4. Amplitude Envelope (Smooth attack, sustained body, smooth decay)
       const envGain = offlineCtx.createGain();
       const attackTime = Math.min(0.04, wordDuration * 0.15);
       const releaseTime = Math.min(0.06, wordDuration * 0.25);
@@ -275,7 +310,6 @@ export class AudioSynthesisEngine {
       envGain.gain.setValueAtTime(peakVol * 0.9, wordEnd - releaseTime);
       envGain.gain.exponentialRampToValueAtTime(0.0001, wordEnd);
 
-      // Connect vocal nodes
       osc1.connect(filter1);
       osc1.connect(filter2);
       osc2.connect(filter1);
@@ -285,7 +319,6 @@ export class AudioSynthesisEngine {
       filter3.connect(envGain);
       envGain.connect(masterGain);
 
-      // 5. Consonant Transient Burst (Crisp articulation for initial consonants)
       const hasConsonant = /^[b-df-hj-np-tv-z]/i.test(word);
       if (hasConsonant) {
         const noiseBuffer = offlineCtx.createBuffer(1, Math.floor(sampleRate * 0.035), sampleRate);
@@ -318,10 +351,7 @@ export class AudioSynthesisEngine {
       osc2.stop(wordEnd);
     }
 
-    // Render audio graph to PCM buffer
     const renderedBuffer = await offlineCtx.startRendering();
-
-    // Master Peak-Normalized 16-bit PCM WAV Blob (95% full-scale volume)
     const audioBlob = audioBufferToWavBlob(renderedBuffer);
     const audioUrl = URL.createObjectURL(audioBlob);
 
