@@ -62,7 +62,7 @@ const AdminPortalContent: React.FC = () => {
       const cleanEmail = email.trim().toLowerCase();
       const cleanPass = passcode.trim();
 
-      const isValidEmail = cleanEmail === MASTER_EMAIL || cleanEmail === 'admin' || cleanEmail.endsWith('@voxcraft.ai');
+      const isValidEmail = cleanEmail === MASTER_EMAIL || cleanEmail === 'admin' || cleanEmail.endsWith('@voxaro.ai') || cleanEmail.endsWith('@voxcraft.ai');
       const isValidAuth = cleanPass === MASTER_PIN || cleanPass === MASTER_PASSWORD || cleanPass === 'admin123';
 
       if (isValidEmail && isValidAuth) {
@@ -193,30 +193,27 @@ const AdminPortalContent: React.FC = () => {
                     type="text"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="admin@voxcraft.ai"
+                    placeholder="admin@voxaro.ai"
                     required
                     className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder:text-slate-600 focus:outline-hidden focus:border-amber-500 text-sm font-medium transition-colors"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-slate-300">Master PIN / Passkey</label>
-                    <span className="text-[11px] text-amber-400/80 font-mono">PIN: 889900</span>
-                  </div>
+                  <label className="text-xs font-bold text-slate-300">Admin Password / Security Passkey</label>
                   <div className="relative">
                     <input
                       type={showPasscode ? 'text' : 'password'}
                       value={passcode}
                       onChange={(e) => setPasscode(e.target.value)}
-                      placeholder="Enter 6-digit Master PIN"
+                      placeholder="Enter Admin Password or Security Passkey"
                       required
                       className="w-full px-4 py-3 pr-11 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder:text-slate-600 focus:outline-hidden focus:border-amber-500 text-sm font-medium font-mono transition-colors"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPasscode(!showPasscode)}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
                     >
                       {showPasscode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
