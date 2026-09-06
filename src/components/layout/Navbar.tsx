@@ -3,17 +3,17 @@ import { useUser } from '../../context/UserContext';
 import { ThemeToggle } from '../common/ThemeToggle';
 import { NotificationCenter } from '../notifications/NotificationCenter';
 import { UserDropdown } from '../auth/UserDropdown';
-import { Sparkles, Globe, Volume2, Crown, HelpCircle, Compass } from 'lucide-react';
+import { Sparkles, Globe, Volume2, Crown, HelpCircle, Compass, Menu } from 'lucide-react';
 import { LocaleCode } from '../../types';
 
-export const Navbar: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSettings }) => {
+export const Navbar: React.FC<{ onOpenSettings: () => void; onOpenMobileMenu: () => void }> = ({ onOpenSettings, onOpenMobileMenu }) => {
   const { 
     user, 
     planDetails, 
     locale, 
     setLocale, 
     t, 
-    openCheckout,
+    openCheckout, 
     startTour 
   } = useUser();
   const [showLangMenu, setShowLangMenu] = useState(false);
@@ -30,24 +30,36 @@ export const Navbar: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSetting
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-200/80 dark:border-slate-800/80 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3 sm:gap-4">
         
-        {/* Logo */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center justify-center shadow-md shadow-primary-500/10 overflow-hidden shrink-0">
+        {/* Left: Mobile Hamburger 3-Bars & Logo */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          
+          {/* Mobile 3-Bars Hamburger Button */}
+          <button
+            onClick={onOpenMobileMenu}
+            className="md:hidden p-2 -ml-1 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
+            aria-label="Open Navigation Menu"
+            title="Open Menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+
+          {/* Logo */}
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center justify-center shadow-md shadow-primary-500/10 overflow-hidden shrink-0">
             <img 
               src="/voxaro-logo.png" 
               alt="Voxaro Logo" 
               className="w-full h-full object-cover"
               onError={(e) => {
-                // Fallback to icon if needed
                 (e.target as HTMLElement).style.display = 'none';
               }}
             />
           </div>
+
           <div>
-            <div className="flex items-center gap-2">
-              <span className="font-extrabold text-lg text-slate-900 dark:text-white tracking-tight">Voxaro</span>
+            <div className="flex items-center gap-1.5">
+              <span className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-white tracking-tight">Voxaro</span>
               <span className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300 border border-primary-200 dark:border-primary-800">
                 Studio
               </span>

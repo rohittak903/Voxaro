@@ -3,7 +3,7 @@ import { UserProvider, useUser } from './context/UserContext';
 import { AudioProvider } from './context/AudioContext';
 import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
-import { MobileNav } from './components/layout/MobileNav';
+import { MobileDrawer } from './components/layout/MobileDrawer';
 import { TextEditor } from './components/editor/TextEditor';
 import { VoiceLibrary } from './components/voices/VoiceLibrary';
 import { HistoryList } from './components/history/HistoryList';
@@ -20,12 +20,16 @@ import { ToastContainer } from './components/common/Toast';
 const MainAppContent: React.FC = () => {
   const { currentView } = useUser();
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showMobileDrawer, setShowMobileDrawer] = useState(false);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
       
-      {/* Top Navbar */}
-      <Navbar onOpenSettings={() => setShowSettingsModal(true)} />
+      {/* Top Navbar with 3-Bars Hamburger for Mobile */}
+      <Navbar 
+        onOpenSettings={() => setShowSettingsModal(true)} 
+        onOpenMobileMenu={() => setShowMobileDrawer(true)} 
+      />
 
       {/* Main Body with Sidebar + Content */}
       <div className="flex-1 max-w-7xl w-full mx-auto flex">
@@ -34,7 +38,7 @@ const MainAppContent: React.FC = () => {
         <Sidebar onOpenSettings={() => setShowSettingsModal(true)} />
 
         {/* Dynamic Main Workspace Area */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto max-w-5xl">
+        <main className="flex-1 p-3 sm:p-6 lg:p-8 overflow-y-auto max-w-5xl">
           {currentView === 'editor' && <TextEditor />}
           {currentView === 'library' && <VoiceLibrary />}
           {currentView === 'history' && <HistoryList />}
@@ -44,8 +48,15 @@ const MainAppContent: React.FC = () => {
 
       </div>
 
-      {/* Mobile Bottom Tab Navigation */}
-      <MobileNav onOpenSettings={() => setShowSettingsModal(true)} />
+      {/* Mobile Slide-Out 3-Bars Drawer Navigation */}
+      <MobileDrawer
+        isOpen={showMobileDrawer}
+        onClose={() => setShowMobileDrawer(false)}
+        onOpenSettings={() => {
+          setShowMobileDrawer(false);
+          setShowSettingsModal(true);
+        }}
+      />
 
       {/* Global Modals, Systems & Notifications */}
       <ToastContainer />
