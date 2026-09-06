@@ -4,7 +4,8 @@ import { useAudio } from '../../context/AudioContext';
 import { StorageService } from '../../services/storage';
 import { LocaleCode } from '../../types';
 import { ReceiptPdfService } from '../../services/receiptPdfService';
-import { Settings, User, Key, Globe, Moon, Sun, Trash2, Check, X, Shield, Sparkles, Receipt, Download } from 'lucide-react';
+import { CookieService } from '../../services/cookieService';
+import { Settings, User, Key, Globe, Moon, Sun, Trash2, Check, X, Shield, Sparkles, Receipt, Download, Cookie } from 'lucide-react';
 
 export const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const { 
@@ -332,6 +333,30 @@ export const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
             <p className="text-[11px] text-slate-400">
               Plug in your custom provider key for direct upstream routing, or leave blank to use the built-in browser & neural synthesizers.
             </p>
+          </div>
+
+          {/* Cookie & Privacy Management */}
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center justify-center shrink-0">
+                <Cookie className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">Cookie & Privacy Preferences</h4>
+                <p className="text-[11px] text-slate-400">Manage browser cookie categories (Necessary, Currency/Theme, Analytics).</p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                CookieService.openPreferencesModal();
+              }}
+              className="px-3.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors cursor-pointer shrink-0"
+            >
+              Manage
+            </button>
           </div>
 
           {/* Danger Zone */}

@@ -17,6 +17,7 @@ import { RazorpayCheckoutModal } from './components/payment/RazorpayCheckoutModa
 import { InteractiveTour } from './components/tutorial/InteractiveTour';
 import { WhatsNewModal } from './components/notifications/WhatsNewModal';
 import { ToastContainer } from './components/common/Toast';
+import { CookieBanner } from './components/cookies/CookieBanner';
 
 const MainAppContent: React.FC = () => {
   const { currentView } = useUser();
@@ -60,8 +61,9 @@ const MainAppContent: React.FC = () => {
         }}
       />
 
-      {/* Global Modals, Systems & Notifications */}
+      {/* Global Modals, Systems, Cookies & Notifications */}
       <ToastContainer />
+      <CookieBanner />
       <OnboardingModal />
       <InteractiveTour />
       <AuthModal />
