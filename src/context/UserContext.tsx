@@ -82,7 +82,7 @@ interface UserContextType {
   // Auth
   authUser: AuthUser | null;
   isAuthenticated: boolean;
-  login: (email: string, name?: string, provider?: 'email' | 'google' | 'github' | 'guest') => void;
+  login: (email: string, name?: string, provider?: 'email' | 'google' | 'github' | 'guest', avatarUrl?: string) => void;
   signup: (email: string, name: string) => void;
   logout: () => void;
   showAuthModal: boolean;
@@ -170,13 +170,13 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [theme]);
 
   // Auth Handlers
-  const login = (email: string, name?: string, provider: 'email' | 'google' | 'github' | 'guest' = 'email') => {
+  const login = (email: string, name?: string, provider: 'email' | 'google' | 'github' | 'guest' = 'email', avatarUrl?: string) => {
     const displayName = name || email.split('@')[0] || 'Studio Creator';
     const newAuth: AuthUser = {
       id: 'usr-' + Date.now(),
       name: displayName,
       email,
-      avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(displayName)}`,
+      avatarUrl: avatarUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(displayName)}`,
       plan: user.plan,
       provider,
       createdAt: new Date().toISOString()

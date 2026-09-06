@@ -3,15 +3,30 @@
 @tailwind utilities;
 
 @layer base {
-  body {
+  html, body {
     @apply font-sans;
+    width: 100%;
+    min-height: 100%;
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+    -webkit-overflow-scrolling: touch;
+    touch-action: manipulation;
   }
+}
+
+/* Safe area insets for mobile devices */
+.safe-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+.safe-top {
+  padding-top: max(0.5rem, env(safe-area-inset-top));
 }
 
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -23,15 +38,16 @@
   @apply bg-slate-400 dark:bg-slate-600;
 }
 
-/* Range input styling */
+/* Range input styling with responsive touch targets */
 input[type=range] {
-  @apply appearance-none bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full outline-none cursor-pointer;
+  @apply appearance-none bg-slate-200 dark:bg-slate-700 h-2 rounded-full outline-none cursor-pointer;
+  touch-action: pan-x;
 }
 input[type=range]::-webkit-slider-thumb {
-  @apply appearance-none w-4 h-4 rounded-full bg-primary-600 hover:bg-primary-500 shadow-md transition-all cursor-pointer;
+  @apply appearance-none w-5 h-5 rounded-full bg-primary-600 hover:bg-primary-500 shadow-md transition-all cursor-pointer;
 }
 input[type=range]::-moz-range-thumb {
-  @apply w-4 h-4 rounded-full bg-primary-600 hover:bg-primary-500 shadow-md border-none transition-all cursor-pointer;
+  @apply w-5 h-5 rounded-full bg-primary-600 hover:bg-primary-500 shadow-md border-none transition-all cursor-pointer;
 }
 
 /* Glassmorphism helpers */
