@@ -191,74 +191,36 @@ export class AudioSynthesisEngine {
       if (response.ok) {
         const arrayBuffer = await response.arrayBuffer();
         if (arrayBuffer.byteLength > 200) {
-          onProgress?.(65, 'Decoding acoustic voice audio stream...');
+          onProgress?.(80, 'Processing speech audio stream...');
 
+          let duration = estimateAudioDuration(cleanText, speed);
           const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
           if (AudioContextClass) {
-            const audioCtx = new AudioContextClass();
             try {
+              const audioCtx = new AudioContextClass();
               const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
-              
-              onProgress?.(85, 'Applying studio tone, speed & master normalization...');
-              const processedBuffer = await processSpokenAudioBuffer(
-                decodedBuffer,
-                speed,
-                pitchSemitones,
-                emotionParams
-              );
-
-              // 16-bit Master-Peak-Normalized Lossless WAV Blob (95% full-scale volume)
-              const audioBlob = audioBufferToWavBlob(processedBuffer);
-              const audioUrl = URL.createObjectURL(audioBlob);
-
-              onProgress?.(100, 'Speech generation complete!');
-              return {
-                audioBlob,
-                audioUrl,
-                duration: Math.max(1.0, Math.round(processedBuffer.duration * 10) / 10)
-              };
-            } finally {
+              if (decodedBuffer && decodedBuffer.duration > 0) {
+                duration = Math.max(0.5, Math.round(decodedBuffer.duration * 10) / 10);
+              }
               try { audioCtx.close(); } catch {}
+            } catch (decErr) {
+              console.warn('Audio context duration check:', decErr);
             }
-          } else {
-            // Direct MP3 Blob fallback
-            const audioBlob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
-            const audioUrl = URL.createObjectURL(audioBlob);
-            const duration = estimateAudioDuration(cleanText, speed);
-            onProgress?.(100, 'Speech generation complete!');
-            return { audioBlob, audioUrl, duration };
           }
+
+          const audioBlob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+          const audioUrl = URL.createObjectURL(audioBlob);
+
+          onProgress?.(100, 'Speech generation complete!');
+          return {
+            audioBlob,
+            audioUrl,
+            duration
+          };
         }
       }
     } catch (apiErr) {
       console.warn('Online neural TTS endpoint failed, attempting direct cloud speech', apiErr);
-    }
-
-    // 1.5 SECONDARY: Direct Google Speech Fallback
-    try {
-      const directUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(cleanText.slice(0, 200))}&tl=${encodeURIComponent(langPrefix)}&client=tw-ob`;
-      const directRes = await fetch(directUrl);
-      if (directRes.ok) {
-        const directBuf = await directRes.arrayBuffer();
-        if (directBuf.byteLength > 200) {
-          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-          if (AudioContextClass) {
-            const audioCtx = new AudioContextClass();
-            try {
-              const decodedBuffer = await audioCtx.decodeAudioData(directBuf.slice(0));
-              const processedBuffer = await processSpokenAudioBuffer(decodedBuffer, speed, pitchSemitones, emotionParams);
-              const audioBlob = audioBufferToWavBlob(processedBuffer);
-              const audioUrl = URL.createObjectURL(audioBlob);
-              onProgress?.(100, 'Speech generation complete!');
-              return { audioBlob, audioUrl, duration: Math.max(1.0, Math.round(processedBuffer.duration * 10) / 10) };
-            } finally {
-              try { audioCtx.close(); } catch {}
-            }
-          }
-        }
-      }
-    } catch (directErr) {
-      console.warn('Direct cloud speech failed', directErr);
     }
 
     // 2. FALLBACK: High-Volume Vocal Formant Engine (Offline)

@@ -269,8 +269,8 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, interval);
   };
 
-  // Play Speech Aloud with real-time waveform sync (HTML5 Audio with Web Speech fallback)
-  const playSpeechAloud = async (job: GenerationJob, startOffsetSec: number = 0) => {
+  // Play Speech Aloud with real-time waveform sync via HTML5 Audio element
+  const playSpeechAloud = (job: GenerationJob, startOffsetSec: number = 0) => {
     AudioSynthesisEngine.stopSpeaking();
     stopPlaybackProgress();
 
@@ -282,64 +282,48 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       try {
         if (audio.src !== job.audioUrl) {
           audio.src = job.audioUrl;
-          audio.load();
         }
         audio.volume = volume;
         audio.playbackRate = Math.max(0.5, Math.min(2.0, playbackRate * (job.speed || 1.0)));
         audio.loop = isLooping;
-        audio.currentTime = startOffsetSec;
 
-        const playPromise = audio.play();
-        if (playPromise !== undefined) {
-          await playPromise;
+        const startPlay = () => {
+          if (startOffsetSec > 0 && audio.duration && !isNaN(audio.duration)) {
+            try {
+              audio.currentTime = Math.min(startOffsetSec, audio.duration);
+            } catch {}
+          }
+          audio.play().then(() => {
+            setIsPlaying(true);
+          }).catch((err) => {
+            console.warn('Audio play request:', err);
+            setIsPlaying(false);
+          });
+        };
+
+        if (audio.readyState >= 2) {
+          startPlay();
+        } else {
+          audio.addEventListener('canplay', startPlay, { once: true });
+          audio.load();
         }
-        setIsPlaying(true);
         return;
       } catch (audioErr) {
-        console.warn('HTML5 Audio playback error, falling back to Web Speech API', audioErr);
+        console.warn('HTML5 Audio playback error', audioErr);
+        setIsPlaying(false);
       }
     }
-
-    // Fallback to Web Speech API with simulated progress if HTML5 audio not available
-    setIsPlaying(true);
-    setCurrentTime(startOffsetSec);
-    startPlaybackProgress(targetDuration, startOffsetSec);
-
-    const totalChars = job.inputText.length || 1;
-
-    AudioSynthesisEngine.speak(
-      job.inputText,
-      job.voice,
-      job.speed * playbackRate,
-      job.pitch,
-      job.tone,
-      {
-        onStart: () => {
-          setIsPlaying(true);
-        },
-        onBoundary: (charIndex) => {
-          const ratio = Math.min(1.0, Math.max(0, charIndex / totalChars));
-          const time = Math.round(ratio * targetDuration * 10) / 10;
-          setCurrentTime(time);
-        },
-        onEnd: () => {
-          setIsPlaying(false);
-          stopPlaybackProgress();
-          setCurrentTime(targetDuration);
-          setTimeout(() => {
-            setCurrentTime(0);
-          }, 600);
-        },
-        onError: () => {
-          setIsPlaying(false);
-          stopPlaybackProgress();
-        }
-      }
-    );
   };
 
   // Generation Trigger
   const generateAudio = async (): Promise<boolean> => {
+    // Pre-unlock audio element in synchronous user click gesture context
+    if (audioElementRef.current) {
+      try {
+        audioElementRef.current.play().catch(() => {});
+      } catch {}
+    }
+
     const trimmed = inputText.trim();
 
     // 1. Validation
